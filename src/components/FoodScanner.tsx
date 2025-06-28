@@ -1,0 +1,393 @@
+import React, { useState, useRef, useCallback } from 'react';
+import { Camera, Upload, RefreshCw, Loader2, Save, AlertCircle, Share2 } from 'lucide-react';
+import Button from './ui/Button';
+import Card, { CardBody, CardFooter } from './ui/Card';
+import { scanService } from '../services/scanService';
+import { diaryService } from '../services/diaryService';
+import SocialShareButton from './social/SocialShareButton';
+
+interface FoodScannerProps {
+  onScanComplete?: (results: any) => void;
+  className?: string;
+}
+
+const FoodScanner: React.FC<FoodScannerProps> = ({ onScanComplete, className = '' }) => {
+  const [image, setImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [results, setResults] = useState<any>(null);
+  const [error, setError] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = useCallback((file: File) => {
+    setImage(file);
+    setError('');
+    setResults(null);
+
+    // Create preview URL
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  };
+
+  const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      handleFileSelect(file);
+    }
+  }, [handleFileSelect]);
+
+  const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+  }, []);
+
+  const analyzeImage = async () => {
+    if (!imagePreview) return;
+
+    setLoading(true);
+    setError('');
+    setResults(null);
+
+    try {
+      const analysisResults = await scanService.analyzeImage(imagePreview);
+      setResults(analysisResults);
+      onScanComplete?.(analysisResults);
+    } catch (err: any) {
+      setError(err.message || 'Failed to analyze image. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveToDiary = async () => {
+    if (!results) return;
+
+    setSaving(true);
+    try {
+      const entries = results.foodItems.map((item: any) => ({
+        name: item.name,
+        calories: item.calories,
+        protein: item.protein,
+        carbs: item.carbs,
+        fat: item.fat,
+        image_url: imagePreview,
+        timestamp: new Date().toISOString()
+      }));
+
+      await Promise.all(entries.map(entry => diaryService.addFoodEntry(entry)));
+      
+      // Reset the scanner
+      setImage(null);
+      setImagePreview(null);
+      setResults(null);
+      setError('');
+      
+      // Show success message
+      setError('✅ Successfully saved to your food diary!');
+      setTimeout(() => setError(''), 3000);
+    } catch (error) {
+      console.error('Error saving to diary:', error);
+      setError('Failed to save to diary. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resetScanner = () => {
+    setImage(null);
+    setImagePreview(null);
+    setResults(null);
+    setError('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className={`space-y-6 ${className}`}>
+      {/* Upload Area */}
+      <Card>
+        <CardBody>
+          <div
+            className={`
+              border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+              ${imagePreview ? 'border-primary-300 bg-primary-50' : 'border-neutral-300 hover:border-primary-400'}
+            `}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+
+            {imagePreview ? (
+              <div className="space-y-4">
+                <img
+                  src={imagePreview}
+                  alt="Food to analyze"
+                  className="max-w-full max-h-64 mx-auto rounded-lg shadow-md"
+                />
+                <div className="flex justify-center space-x-3">
+                  <Button
+                    variant="outline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      resetScanner();
+                    }}
+                    leftIcon={<RefreshCw className="h-4 w-4" />}
+                  >
+                    Choose Different Image
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      analyzeImage();
+                    }}
+                    disabled={loading}
+                    leftIcon={loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  >
+                    {loading ? 'Analyzing...' : 'Analyze Food'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex justify-center">
+                  <Upload className="h-12 w-12 text-neutral-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-neutral-900 mb-2">
+                    📷 Upload Food Photo
+                  </h3>
+                  <p className="text-neutral-600 mb-4">
+                    Drag and drop an image here, or click to browse
+                  </p>
+                  <p className="text-sm text-neutral-500">
+                    Supported formats: JPG, PNG, WebP (max 10MB)
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* Error Display */}
+      {error && (
+        <div className={`p-4 rounded-lg flex items-center space-x-2 ${
+          error.includes('✅') 
+            ? 'bg-green-50 text-green-700 border border-green-200'
+            : 'bg-red-50 text-red-700 border border-red-200'
+        }`}>
+          <AlertCircle className="h-5 w-5 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Results Display */}
+      {results && (
+        <Card>
+          <CardBody>
+            <div className="space-y-6">
+              {/* Nutrition Summary */}
+              <div>
+                <h3 className="text-xl font-bold text-neutral-900 mb-4">
+                  🍽️ Nutritional Analysis
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <NutritionStat
+                    label="Calories"
+                    value={`${results.totalCalories}`}
+                    unit="kcal"
+                    bgColor="bg-primary-100"
+                    textColor="text-primary-800"
+                  />
+                  <NutritionStat
+                    label="Protein"
+                    value={`${results.totalProtein}`}
+                    unit="g"
+                    bgColor="bg-blue-100"
+                    textColor="text-blue-800"
+                  />
+                  <NutritionStat
+                    label="Carbs"
+                    value={`${results.totalCarbs}`}
+                    unit="g"
+                    bgColor="bg-purple-100"
+                    textColor="text-purple-800"
+                  />
+                  <NutritionStat
+                    label="Fat"
+                    value={`${results.totalFat}`}
+                    unit="g"
+                    bgColor="bg-yellow-100"
+                    textColor="text-yellow-800"
+                  />
+                </div>
+              </div>
+
+              {/* Individual Food Items */}
+              <div>
+                <h4 className="text-lg font-semibold text-neutral-900 mb-3">
+                  🔍 Identified Foods
+                </h4>
+                <div className="space-y-4">
+                  {results.foodItems.map((item: any, index: number) => (
+                    <FoodItemCard key={index} item={item} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardBody>
+          
+          <CardFooter className="flex justify-between">
+            <Button
+              variant="outline"
+              onClick={resetScanner}
+              leftIcon={<RefreshCw className="h-4 w-4" />}
+            >
+              Scan Another
+            </Button>
+            <div className="flex space-x-2">
+              <SocialShareButton
+                contentType="food_scan"
+                contentId={results.id || "latest"}
+                contentName={results.foodItems[0]?.name || "food"}
+                imageUrl={imagePreview || undefined}
+                variant="outline"
+              />
+              <Button
+                variant="primary"
+                onClick={saveToDiary}
+                disabled={saving}
+                leftIcon={saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              >
+                {saving ? 'Saving...' : 'Save to Diary'}
+              </Button>
+            </div>
+          </CardFooter>
+        </Card>
+      )}
+
+      {/* Loading State */}
+      {loading && (
+        <Card>
+          <CardBody className="text-center py-12">
+            <Loader2 className="h-12 w-12 animate-spin text-primary-600 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-neutral-900 mb-2">
+              Analyzing Your Food...
+            </h3>
+            <p className="text-neutral-600">
+              Our AI is identifying ingredients and calculating nutrition facts
+            </p>
+          </CardBody>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+interface NutritionStatProps {
+  label: string;
+  value: string;
+  unit: string;
+  bgColor: string;
+  textColor: string;
+}
+
+const NutritionStat: React.FC<NutritionStatProps> = ({
+  label,
+  value,
+  unit,
+  bgColor,
+  textColor
+}) => {
+  return (
+    <div className={`${bgColor} rounded-lg p-4 text-center`}>
+      <div className="text-sm text-neutral-600 mb-1">{label}</div>
+      <div className={`text-2xl font-bold ${textColor}`}>
+        {value}
+        <span className="text-sm font-normal ml-1">{unit}</span>
+      </div>
+    </div>
+  );
+};
+
+interface FoodItemCardProps {
+  item: {
+    name: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    healthBenefits?: string[];
+    healthRisks?: string[];
+  };
+}
+
+const FoodItemCard: React.FC<FoodItemCardProps> = ({ item }) => {
+  return (
+    <div className="p-4 border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors">
+      <div className="flex justify-between items-start mb-3">
+        <h5 className="font-medium text-neutral-900 capitalize">{item.name}</h5>
+        <span className="text-primary-600 font-medium">{item.calories} cal</span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4 text-sm text-neutral-600 mb-3">
+        <div>Protein: <span className="font-medium">{item.protein}g</span></div>
+        <div>Carbs: <span className="font-medium">{item.carbs}g</span></div>
+        <div>Fat: <span className="font-medium">{item.fat}g</span></div>
+      </div>
+
+      {/* Health Benefits and Risks */}
+      {(item.healthBenefits?.length || item.healthRisks?.length) && (
+        <div className="space-y-2">
+          {item.healthBenefits && item.healthBenefits.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {item.healthBenefits.map((benefit, index) => (
+                <span
+                  key={index}
+                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"
+                >
+                  ✓ {benefit}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {item.healthRisks && item.healthRisks.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {item.healthRisks.map((risk, index) => (
+                <span
+                  key={index}
+                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"
+                >
+                  ⚠ {risk}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default FoodScanner;
