@@ -22,15 +22,29 @@ serve(async (req) => {
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    
+    if (!supabaseUrl || !supabaseKey) {
+      return new Response(
+        JSON.stringify({ error: 'Missing Supabase environment variables' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+    
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Get the authorization header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return new Response(
+        JSON.stringify({ error: 'No authorization header' }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
     // Get the user from the token
@@ -38,14 +52,30 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
 
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return new Response(
+        JSON.stringify({ error: 'Invalid token' }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
     // Parse the request body
-    const { provider, code, redirectUri }: SocialConnectRequest = await req.json();
+    const requestData = await req.json();
+    
+    // Validate request body
+    if (!requestData || !requestData.provider || !requestData.code || !requestData.redirectUri) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid request body. provider, code, and redirectUri are required.' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+    
+    const { provider, code, redirectUri }: SocialConnectRequest = requestData;
 
     // Get the appropriate API credentials based on the provider
     let clientId, clientSecret, tokenUrl, profileUrl;
@@ -82,23 +112,33 @@ serve(async (req) => {
         profileUrl = 'https://api.pinterest.com/v5/user_account';
         break;
       default:
-        return new Response(JSON.stringify({ error: 'Unsupported provider' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        return new Response(
+          JSON.stringify({ error: 'Unsupported provider' }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
     }
 
     if (!clientId || !clientSecret) {
-      return new Response(JSON.stringify({ error: `${provider} API credentials not configured` }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return new Response(
+        JSON.stringify({ error: `${provider} API credentials not configured` }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
+    // Set a timeout for the token exchange
+    const timeoutMs = 10000; // 10 seconds
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Token exchange timed out')), timeoutMs);
+    });
+    
     // Exchange the authorization code for an access token
-    // This is a simplified example - in a real implementation, you would need to handle
-    // the specific OAuth flow for each provider
-    const tokenResponse = await fetch(tokenUrl, {
+    const tokenRequestPromise = fetch(tokenUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -111,14 +151,23 @@ serve(async (req) => {
         grant_type: 'authorization_code'
       }).toString()
     });
+    
+    // Race between the token request and the timeout
+    const tokenResponse = await Promise.race([
+      tokenRequestPromise,
+      timeoutPromise
+    ]);
 
     if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.json();
+      const errorData = await tokenResponse.json().catch(() => ({}));
       console.error('Token exchange error:', errorData);
-      return new Response(JSON.stringify({ error: 'Failed to exchange authorization code' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return new Response(
+        JSON.stringify({ error: 'Failed to exchange authorization code', details: errorData }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
     const tokenData = await tokenResponse.json();
@@ -126,19 +175,34 @@ serve(async (req) => {
     const refreshToken = tokenData.refresh_token;
     const expiresIn = tokenData.expires_in;
 
+    // Set a timeout for the profile fetch
+    const profileTimeoutMs = 10000; // 10 seconds
+    const profileTimeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Profile fetch timed out')), profileTimeoutMs);
+    });
+    
     // Get the user profile from the provider
-    const profileResponse = await fetch(profileUrl, {
+    const profileRequestPromise = fetch(profileUrl, {
       headers: {
         'Authorization': `Bearer ${accessToken}`
       }
     });
+    
+    // Race between the profile request and the timeout
+    const profileResponse = await Promise.race([
+      profileRequestPromise,
+      profileTimeoutPromise
+    ]);
 
     if (!profileResponse.ok) {
       console.error('Profile fetch error:', await profileResponse.text());
-      return new Response(JSON.stringify({ error: 'Failed to fetch user profile' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch user profile' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
     const profileData = await profileResponse.json();
@@ -243,6 +307,7 @@ serve(async (req) => {
         headers: { 
           ...corsHeaders,
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate'
         } 
       }
     );

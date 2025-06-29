@@ -16,6 +16,16 @@ serve(async (req) => {
   try {
     const { bloodwork_id, file_url } = await req.json();
     
+    if (!bloodwork_id || !file_url) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required parameters: bloodwork_id and file_url' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+    
     // Initialize Gemini AI
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) {
@@ -64,6 +74,11 @@ serve(async (req) => {
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Missing Supabase environment variables");
+    }
+    
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Get the bloodwork record
@@ -75,6 +90,10 @@ serve(async (req) => {
 
     if (bloodworkError) {
       throw new Error(`Failed to get bloodwork record: ${bloodworkError.message}`);
+    }
+
+    if (!bloodwork) {
+      throw new Error(`Bloodwork record not found for ID: ${bloodwork_id}`);
     }
 
     // Create a prompt for Gemini to analyze the bloodwork
@@ -105,8 +124,18 @@ serve(async (req) => {
       }
     `;
 
+    // Set a timeout for the Gemini API call
+    const timeoutMs = 20000; // 20 seconds
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Gemini API request timed out')), timeoutMs);
+    });
+    
     // Generate analysis
-    const result = await model.generateContent(prompt);
+    const result = await Promise.race([
+      model.generateContent(prompt),
+      timeoutPromise
+    ]);
+    
     const response = await result.response;
     const text = response.text();
 
@@ -214,6 +243,7 @@ serve(async (req) => {
         headers: { 
           ...corsHeaders,
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate'
         } 
       }
     );

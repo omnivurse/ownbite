@@ -7,12 +7,14 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-interface SocialShareRequest {
-  contentType: 'recipe' | 'food_scan' | 'progress' | 'achievement';
-  contentId: string;
-  providers: ('facebook' | 'instagram' | 'tiktok' | 'twitter' | 'pinterest')[];
-  text?: string;
-  imageUrl?: string;
+interface ShareRequest {
+  content_type: 'recipe' | 'food_scan' | 'progress' | 'achievement' | 'bloodwork';
+  content_id: string;
+  provider: 'facebook' | 'instagram' | 'tiktok' | 'twitter' | 'pinterest' | 'linkedin';
+  share_text: string;
+  share_url?: string;
+  share_image_url?: string;
+  hashtags?: string[];
 }
 
 serve(async (req) => {
@@ -24,15 +26,29 @@ serve(async (req) => {
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    
+    if (!supabaseUrl || !supabaseKey) {
+      return new Response(
+        JSON.stringify({ error: 'Missing Supabase environment variables' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+    
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Get the authorization header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return new Response(
+        JSON.stringify({ error: 'No authorization header' }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
     // Get the user from the token
@@ -40,110 +56,147 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
 
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return new Response(
+        JSON.stringify({ error: 'Invalid token' }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
     // Parse the request body
-    const { contentType, contentId, providers, text, imageUrl }: SocialShareRequest = await req.json();
-
-    // Validate the request
-    if (!contentType || !contentId || !providers || providers.length === 0) {
-      return new Response(JSON.stringify({ error: 'Missing required parameters' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    const requestData = await req.json();
+    
+    // Validate request body
+    if (!requestData || !requestData.content_type || !requestData.content_id || !requestData.provider || !requestData.share_text) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid request body. content_type, content_id, provider, and share_text are required.' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
+    
+    const { 
+      content_type, 
+      content_id, 
+      provider, 
+      share_text, 
+      share_url, 
+      share_image_url, 
+      hashtags = [] 
+    }: ShareRequest = requestData;
 
-    // Get the connected accounts for the specified providers
-    const { data: connectedAccounts, error: accountsError } = await supabase
+    // Get the connected account for the specified provider
+    const { data: connectedAccount, error: accountError } = await supabase
       .from('social_accounts')
       .select('*')
       .eq('user_id', user.id)
+      .eq('provider', provider)
       .eq('is_connected', true)
-      .in('provider', providers);
+      .single();
 
-    if (accountsError) {
-      return new Response(JSON.stringify({ error: 'Failed to fetch connected accounts' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    if (accountError) {
+      return new Response(
+        JSON.stringify({ error: `No connected ${provider} account found` }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
-    if (!connectedAccounts || connectedAccounts.length === 0) {
-      return new Response(JSON.stringify({ error: 'No connected accounts found for the specified providers' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Generate the share URL
+    // Generate the share URL if not provided
     const baseUrl = 'https://ownbite.me';
-    let shareUrl;
+    let finalShareUrl = share_url;
     
-    switch (contentType) {
-      case 'recipe':
-        shareUrl = `${baseUrl}/r/${contentId}`;
-        break;
-      case 'food_scan':
-        shareUrl = `${baseUrl}/s/${contentId}`;
-        break;
-      case 'progress':
-        shareUrl = `${baseUrl}/p/${contentId}`;
-        break;
-      case 'achievement':
-        shareUrl = `${baseUrl}/a/${contentId}`;
-        break;
-      default:
-        shareUrl = baseUrl;
+    if (!finalShareUrl) {
+      switch (content_type) {
+        case 'recipe':
+          finalShareUrl = `${baseUrl}/r/${content_id}`;
+          break;
+        case 'food_scan':
+          finalShareUrl = `${baseUrl}/s/${content_id}`;
+          break;
+        case 'progress':
+          finalShareUrl = `${baseUrl}/p/${content_id}`;
+          break;
+        case 'achievement':
+          finalShareUrl = `${baseUrl}/a/${content_id}`;
+          break;
+        case 'bloodwork':
+          finalShareUrl = `${baseUrl}/b/${content_id}`;
+          break;
+        default:
+          finalShareUrl = baseUrl;
+      }
     }
 
-    // Generate default share text if not provided
-    const shareText = text || `Check out my ${contentType.replace('_', ' ')} on OwnBite.me! #OwnBite`;
+    // Ensure the main hashtag is included
+    const finalHashtags = [...hashtags];
+    if (!finalHashtags.includes('#iamhealthierwithownbite.me')) {
+      finalHashtags.push('#iamhealthierwithownbite.me');
+    }
 
-    // Create share records for each provider
-    const sharePromises = connectedAccounts.map(async (account) => {
-      // In a real implementation, you would make API calls to each social media platform
-      // For this demo, we'll simulate the sharing process
-      
-      // Create a share record
-      const { data: share, error: shareError } = await supabase
-        .from('social_shares')
-        .insert({
-          user_id: user.id,
-          content_type: contentType,
-          content_id: contentId,
-          provider: account.provider,
-          share_url: shareUrl,
-          share_image_url: imageUrl,
-          share_text: shareText,
-          share_status: 'success' // In a real implementation, this would be 'pending' until confirmed
-        })
-        .select()
-        .single();
+    // In a real implementation, you would make API calls to each social media platform
+    // For this demo, we'll simulate the sharing process by creating a share record
+    
+    // Create a share record
+    const { data: share, error: shareError } = await supabase
+      .from('social_shares')
+      .insert({
+        user_id: user.id,
+        content_type,
+        content_id,
+        provider,
+        share_url: finalShareUrl,
+        share_image_url,
+        share_text,
+        share_status: 'success', // In a real implementation, this would be 'pending' until confirmed
+        hashtags: finalHashtags
+      })
+      .select()
+      .single();
 
-      if (shareError) {
-        console.error(`Error creating share record for ${account.provider}:`, shareError);
-        return null;
-      }
+    if (shareError) {
+      console.error(`Error creating share record for ${provider}:`, shareError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to create share record' }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
 
-      return share;
-    });
-
-    const shares = await Promise.all(sharePromises);
-    const validShares = shares.filter(share => share !== null);
+    // Award points for sharing
+    try {
+      await supabase.rpc('award_points', {
+        p_event_type: 'share_progress',
+        p_points: 15,
+        p_context: { 
+          content_type, 
+          provider 
+        }
+      });
+    } catch (pointsError) {
+      console.error('Error awarding points:', pointsError);
+      // Continue even if points award fails
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true,
-        shares: validShares
+        share,
+        points_awarded: 15
       }),
       { 
         headers: { 
           ...corsHeaders,
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate'
         } 
       }
     );

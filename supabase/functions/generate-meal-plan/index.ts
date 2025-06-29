@@ -55,12 +55,36 @@ serve(async (req) => {
   }
 
   try {
+    // Validate request
+    if (!req.headers.get('Authorization')) {
+      return new Response(
+        JSON.stringify({ error: 'Authorization header is required' }),
+        { 
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+    
+    const requestData = await req.json();
+    
+    // Validate request body
+    if (!requestData || !requestData.user_id || !requestData.nutrient_deficiencies) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid request body. user_id and nutrient_deficiencies are required.' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+    
     const { 
       user_id, 
       bloodwork_data, 
       nutrient_deficiencies, 
-      preferences 
-    }: MealPlanRequest = await req.json();
+      preferences = { dietary_restrictions: [], allergies: [], cuisine_preferences: [] }
+    }: MealPlanRequest = requestData;
 
     // Initialize Gemini AI
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
@@ -143,7 +167,18 @@ serve(async (req) => {
       Focus on whole foods and provide variety throughout the week.
     `;
 
-    const result = await model.generateContent(prompt);
+    // Set a timeout for the Gemini API call
+    const timeoutMs = 25000; // 25 seconds
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Gemini API request timed out')), timeoutMs);
+    });
+    
+    // Race between the API call and the timeout
+    const result = await Promise.race([
+      model.generateContent(prompt),
+      timeoutPromise
+    ]);
+    
     const response = await result.response;
     const text = response.text();
 
@@ -157,6 +192,11 @@ serve(async (req) => {
       }
       
       mealPlan = JSON.parse(jsonMatch[0]);
+      
+      // Validate the meal plan structure
+      if (!mealPlan.title || !mealPlan.plan_data || !mealPlan.plan_data.days) {
+        throw new Error('Invalid meal plan structure');
+      }
     } catch (parseError) {
       console.error('Error parsing AI response:', parseError);
       
@@ -170,6 +210,7 @@ serve(async (req) => {
         headers: { 
           ...corsHeaders,
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate'
         } 
       }
     );

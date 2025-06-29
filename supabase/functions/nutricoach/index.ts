@@ -30,6 +30,20 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Validate request
+    if (!req.headers.get('Authorization')) {
+      return new Response(
+        JSON.stringify({ error: 'Authorization header is required' }),
+        {
+          status: 401,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders,
+          },
+        }
+      );
+    }
+
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) {
       // Return mock advice if no API key is available
@@ -46,10 +60,32 @@ Deno.serve(async (req) => {
       );
     }
     
+    const requestData = await req.json();
+    
+    // Validate request body
+    if (!requestData || !requestData.dailySummary) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid request body. dailySummary is required.' }),
+        {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders,
+          },
+        }
+      );
+    }
+    
+    const { dailySummary, recentEntries, query } = requestData as NutritionData;
+    
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
-    const { dailySummary, recentEntries, query } = await req.json() as NutritionData;
+    // Set a timeout for the Gemini API call
+    const timeoutMs = 15000; // 15 seconds
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Gemini API request timed out')), timeoutMs);
+    });
 
     const prompt = `
       As a friendly and knowledgeable nutrition coach, analyze this daily nutrition data:
@@ -86,7 +122,12 @@ Deno.serve(async (req) => {
       Limit the response to 3-4 short paragraphs.
     `;
 
-    const result = await model.generateContent(prompt);
+    // Race between the API call and the timeout
+    const result = await Promise.race([
+      model.generateContent(prompt),
+      timeoutPromise
+    ]);
+    
     const response = await result.response;
     const text = response.text();
 
@@ -95,6 +136,7 @@ Deno.serve(async (req) => {
       {
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
           ...corsHeaders,
         },
       }

@@ -24,12 +24,26 @@ interface AnalyzeImageResult {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
     const { imageDataUrl } = await req.json();
+    
+    if (!imageDataUrl || typeof imageDataUrl !== 'string') {
+      return new Response(
+        JSON.stringify({ error: 'Invalid image data provided' }),
+        { 
+          status: 400,
+          headers: { 
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          } 
+        }
+      );
+    }
     
     // Initialize APIs with your credentials
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
@@ -71,6 +85,9 @@ serve(async (req) => {
     
     // Remove the data URL prefix to get just the base64 data
     const base64Data = imageDataUrl.split(',')[1];
+    if (!base64Data) {
+      throw new Error('Invalid image data format');
+    }
 
     // Log the start time for performance tracking
     const startTime = Date.now();
@@ -116,7 +133,19 @@ serve(async (req) => {
       };
 
       console.log("Sending request to Gemini...");
-      const result = await model.generateContent([prompt, imagePart]);
+      
+      // Set a timeout for the Gemini API call
+      const timeoutMs = 15000; // 15 seconds
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Gemini API request timed out')), timeoutMs);
+      });
+      
+      // Race between the API call and the timeout
+      const result = await Promise.race([
+        model.generateContent([prompt, imagePart]),
+        timeoutPromise
+      ]);
+      
       const response = await result.response;
       const responseText = response.text();
       
@@ -141,10 +170,10 @@ serve(async (req) => {
       const foodItems = parsedResponse.foodItems || [];
       const totals = foodItems.reduce(
         (acc, item) => ({
-          totalCalories: acc.totalCalories + (item.calories || 0),
-          totalProtein: acc.totalProtein + (item.protein || 0),
-          totalCarbs: acc.totalCarbs + (item.carbs || 0),
-          totalFat: acc.totalFat + (item.fat || 0),
+          totalCalories: acc.totalCalories + (Number(item.calories) || 0),
+          totalProtein: acc.totalProtein + (Number(item.protein) || 0),
+          totalCarbs: acc.totalCarbs + (Number(item.carbs) || 0),
+          totalFat: acc.totalFat + (Number(item.fat) || 0),
         }),
         { totalCalories: 0, totalProtein: 0, totalCarbs: 0, totalFat: 0 }
       );
@@ -163,6 +192,7 @@ serve(async (req) => {
           headers: { 
             ...corsHeaders,
             'Content-Type': 'application/json',
+            'Cache-Control': 'no-store, no-cache, must-revalidate'
           } 
         }
       );
