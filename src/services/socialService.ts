@@ -1,6 +1,9 @@
 import { supabase } from '../lib/supabase';
 import { SocialAccount, SocialShare, SocialShareRequest, SocialConnectRequest } from '../types/social';
 
+// Timeout for social operations in milliseconds
+const SOCIAL_TIMEOUT = 10000; // 10 seconds
+
 export const socialService = {
   /**
    * Get all connected social accounts for the current user
@@ -10,18 +13,43 @@ export const socialService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Loading connected accounts timed out'));
+        }, SOCIAL_TIMEOUT);
+        
+        // Clean up timeout if component unmounts
+        return () => clearTimeout(timeoutId);
+      });
+      
+      // Race between the actual request and the timeout
+      const accountsPromise = supabase
         .from('social_accounts')
         .select('*')
         .eq('user_id', user.id)
         .eq('is_connected', true)
         .order('created_at', { ascending: false });
+      
+      const result = await Promise.race([
+        accountsPromise,
+        timeoutPromise
+      ]);
+      
+      // If result is null, it means the timeout won
+      if (result === null) {
+        throw new Error('Loading connected accounts timed out');
+      }
+      
+      const { data, error } = result;
 
       if (error) throw error;
       return data || [];
     } catch (error) {
       console.error('Error fetching connected accounts:', error);
-      throw error;
+      
+      // Return empty array instead of throwing to prevent UI breakage
+      return [];
     }
   },
 
@@ -35,18 +63,44 @@ export const socialService = {
         throw new Error('Not authenticated');
       }
 
-      // Call the edge function to handle OAuth token exchange
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/social-connect`,
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Account connection timed out'));
+        }, SOCIAL_TIMEOUT);
+        
+        // Clean up timeout if component unmounts
+        return () => clearTimeout(timeoutId);
+      });
+      
+      // Add a timestamp to prevent caching
+      const timestamp = Date.now();
+      
+      // Race between the actual request and the timeout
+      const connectPromise = fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/social-connect?t=${timestamp}`,
         {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
           },
           body: JSON.stringify(request),
         }
       );
+      
+      const response = await Promise.race([
+        connectPromise,
+        timeoutPromise.then(() => {
+          throw new Error('Account connection timed out');
+        })
+      ]);
+      
+      // If response is null, it means the timeout won
+      if (response === null) {
+        throw new Error('Account connection timed out');
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -69,11 +123,34 @@ export const socialService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Account disconnection timed out'));
+        }, SOCIAL_TIMEOUT);
+        
+        // Clean up timeout if component unmounts
+        return () => clearTimeout(timeoutId);
+      });
+      
+      // Race between the actual request and the timeout
+      const disconnectPromise = supabase
         .from('social_accounts')
         .update({ is_connected: false })
         .eq('id', accountId)
         .eq('user_id', user.id);
+      
+      const result = await Promise.race([
+        disconnectPromise,
+        timeoutPromise
+      ]);
+      
+      // If result is null, it means the timeout won
+      if (result === null) {
+        throw new Error('Account disconnection timed out');
+      }
+      
+      const { error } = result;
 
       if (error) throw error;
     } catch (error) {
@@ -92,18 +169,44 @@ export const socialService = {
         throw new Error('Not authenticated');
       }
 
-      // Call the edge function to handle social sharing
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/social-share`,
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Content sharing timed out'));
+        }, SOCIAL_TIMEOUT);
+        
+        // Clean up timeout if component unmounts
+        return () => clearTimeout(timeoutId);
+      });
+      
+      // Add a timestamp to prevent caching
+      const timestamp = Date.now();
+      
+      // Race between the actual request and the timeout
+      const sharePromise = fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/social-share?t=${timestamp}`,
         {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
           },
           body: JSON.stringify(request),
         }
       );
+      
+      const response = await Promise.race([
+        sharePromise,
+        timeoutPromise.then(() => {
+          throw new Error('Content sharing timed out');
+        })
+      ]);
+      
+      // If response is null, it means the timeout won
+      if (response === null) {
+        throw new Error('Content sharing timed out');
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -126,17 +229,42 @@ export const socialService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Loading share history timed out'));
+        }, SOCIAL_TIMEOUT);
+        
+        // Clean up timeout if component unmounts
+        return () => clearTimeout(timeoutId);
+      });
+      
+      // Race between the actual request and the timeout
+      const historyPromise = supabase
         .from('social_shares')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
+      
+      const result = await Promise.race([
+        historyPromise,
+        timeoutPromise
+      ]);
+      
+      // If result is null, it means the timeout won
+      if (result === null) {
+        throw new Error('Loading share history timed out');
+      }
+      
+      const { data, error } = result;
 
       if (error) throw error;
       return data || [];
     } catch (error) {
       console.error('Error fetching share history:', error);
-      throw error;
+      
+      // Return empty array instead of throwing to prevent UI breakage
+      return [];
     }
   },
 

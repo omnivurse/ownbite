@@ -34,6 +34,9 @@ export interface NutrientRecommendation {
   priority_level: number;
 }
 
+// Timeout for bloodwork operations in milliseconds
+const BLOODWORK_TIMEOUT = 15000; // 15 seconds
+
 export const bloodworkService = {
   /**
    * Upload and analyze bloodwork file
@@ -43,21 +46,41 @@ export const bloodworkService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Bloodwork upload timed out'));
+        }, BLOODWORK_TIMEOUT);
+        
+        // Clean up timeout if component unmounts
+        return () => clearTimeout(timeoutId);
+      });
+
       // Upload file to Supabase Storage
       const fileName = `${user.id}/${Date.now()}-${file.name}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      
+      const uploadPromise = supabase.storage
         .from('bloodwork')
         .upload(fileName, file);
+      
+      const uploadResult = await Promise.race([
+        uploadPromise,
+        timeoutPromise.then(() => {
+          throw new Error('Bloodwork upload timed out');
+        })
+      ]);
+      
+      const { data: uploadData, error: uploadError } = uploadResult;
 
       if (uploadError) throw uploadError;
 
-      // Get public URL for the uploaded file
+      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('bloodwork')
         .getPublicUrl(fileName);
 
-      // Create bloodwork record
-      const { data, error } = await supabase
+      // Save bloodwork record to database
+      const insertPromise = supabase
         .from('bloodwork_results')
         .insert([{
           user_id: user.id,
@@ -69,13 +92,23 @@ export const bloodworkService = {
         }])
         .select()
         .single();
+      
+      const insertResult = await Promise.race([
+        insertPromise,
+        timeoutPromise.then(() => {
+          throw new Error('Bloodwork database insert timed out');
+        })
+      ]);
+      
+      const { data: bloodworkData, error: dbError } = insertResult;
 
-      if (error) throw error;
+      if (dbError) throw dbError;
 
       // Trigger AI analysis of the uploaded file
-      await this.triggerBloodworkAnalysis(data.id, publicUrl);
+      this.triggerBloodworkAnalysis(bloodworkData.id, publicUrl)
+        .catch(error => console.error('Error triggering analysis:', error));
       
-      return data;
+      return bloodworkData;
     } catch (error) {
       console.error('Error uploading bloodwork:', error);
       throw new Error('Failed to upload bloodwork. Please try again.');
@@ -126,18 +159,39 @@ export const bloodworkService = {
         return;
       }
 
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Bloodwork analysis timed out'));
+        }, BLOODWORK_TIMEOUT);
+        
+        // Clean up timeout if component unmounts
+        return () => clearTimeout(timeoutId);
+      });
+      
+      // Add a timestamp to prevent caching
+      const timestamp = Date.now();
+
       // Call the analyze-bloodwork edge function
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-bloodwork`, {
+      const analyzePromise = fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-bloodwork?t=${timestamp}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
         },
         body: JSON.stringify({ 
           bloodwork_id: bloodworkId,
           file_url: fileUrl 
         }),
       });
+      
+      const response = await Promise.race([
+        analyzePromise,
+        timeoutPromise.then(() => {
+          throw new Error('Bloodwork analysis timed out');
+        })
+      ]);
 
       if (!response.ok) {
         throw new Error('Analysis failed');
@@ -169,8 +223,18 @@ export const bloodworkService = {
         throw new Error('Not authenticated');
       }
 
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Adding nutrient values timed out'));
+        }, BLOODWORK_TIMEOUT);
+        
+        // Clean up timeout if component unmounts
+        return () => clearTimeout(timeoutId);
+      });
+
       // Create a manual bloodwork entry
-      const { data: bloodworkData, error: bloodworkError } = await supabase
+      const bloodworkPromise = supabase
         .from('bloodwork_results')
         .insert([{
           user_id: user.id,
@@ -180,24 +244,42 @@ export const bloodworkService = {
         }])
         .select()
         .single();
+      
+      const bloodworkResult = await Promise.race([
+        bloodworkPromise,
+        timeoutPromise.then(() => {
+          throw new Error('Creating bloodwork entry timed out');
+        })
+      ]);
+      
+      const { data: bloodworkData, error: bloodworkError } = bloodworkResult;
 
       if (bloodworkError) throw bloodworkError;
 
       // Analyze each nutrient and create status records
       const statusPromises = nutrients.map(async (nutrient) => {
         // Get analysis status
-        const { data: statusResult, error: statusError } = await supabase
+        const statusPromise = supabase
           .rpc('analyze_nutrient_status', {
             p_user_id: user.id,
             p_nutrient_name: nutrient.name,
             p_value: nutrient.value,
             p_unit: nutrient.unit
           });
+        
+        const statusResult = await Promise.race([
+          statusPromise,
+          timeoutPromise.then(() => {
+            throw new Error('Analyzing nutrient status timed out');
+          })
+        ]);
+        
+        const { data: statusResult, error: statusError } = statusResult;
 
         if (statusError) throw statusError;
 
         // Insert nutrient status
-        const { data: statusData, error: insertError } = await supabase
+        const insertPromise = supabase
           .from('user_nutrient_status')
           .insert([{
             user_id: user.id,
@@ -209,6 +291,15 @@ export const bloodworkService = {
           }])
           .select()
           .single();
+        
+        const insertResult = await Promise.race([
+          insertPromise,
+          timeoutPromise.then(() => {
+            throw new Error('Inserting nutrient status timed out');
+          })
+        ]);
+        
+        const { data: statusData, error: insertError } = insertResult;
 
         if (insertError) throw insertError;
         return statusData;
@@ -230,17 +321,46 @@ export const bloodworkService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Getting bloodwork results timed out'));
+        }, BLOODWORK_TIMEOUT);
+        
+        // Clean up timeout if component unmounts
+        return () => clearTimeout(timeoutId);
+      });
+      
+      // Add a timestamp to prevent caching
+      const timestamp = Date.now();
+      
+      // Race between the actual request and the timeout
+      const bloodworkPromise = supabase
         .from('bloodwork_results')
         .select('*')
         .eq('user_id', user.id)
-        .order('uploaded_at', { ascending: false });
+        .order('uploaded_at', { ascending: false })
+        .eq('_t', timestamp); // Add timestamp parameter to prevent caching
+      
+      const result = await Promise.race([
+        bloodworkPromise,
+        timeoutPromise
+      ]);
+      
+      // If result is null, it means the timeout won
+      if (result === null) {
+        throw new Error('Getting bloodwork results timed out');
+      }
+      
+      const { data, error } = result;
 
       if (error) throw error;
       return data || [];
     } catch (error) {
       console.error('Error fetching bloodwork:', error);
-      throw new Error('Failed to fetch bloodwork results.');
+      
+      // Return empty array instead of throwing to prevent UI breakage
+      return [];
     }
   },
 
@@ -252,17 +372,46 @@ export const bloodworkService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Getting nutrient status timed out'));
+        }, BLOODWORK_TIMEOUT);
+        
+        // Clean up timeout if component unmounts
+        return () => clearTimeout(timeoutId);
+      });
+      
+      // Add a timestamp to prevent caching
+      const timestamp = Date.now();
+      
+      // Race between the actual request and the timeout
+      const statusPromise = supabase
         .from('user_nutrient_status')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .eq('_t', timestamp); // Add timestamp parameter to prevent caching
+      
+      const result = await Promise.race([
+        statusPromise,
+        timeoutPromise
+      ]);
+      
+      // If result is null, it means the timeout won
+      if (result === null) {
+        throw new Error('Getting nutrient status timed out');
+      }
+      
+      const { data, error } = result;
 
       if (error) throw error;
       return data || [];
     } catch (error) {
       console.error('Error fetching nutrient status:', error);
-      throw new Error('Failed to fetch nutrient status.');
+      
+      // Return empty array instead of throwing to prevent UI breakage
+      return [];
     }
   },
 
@@ -274,16 +423,45 @@ export const bloodworkService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Getting recommendations timed out'));
+        }, BLOODWORK_TIMEOUT);
+        
+        // Clean up timeout if component unmounts
+        return () => clearTimeout(timeoutId);
+      });
+      
+      // Add a timestamp to prevent caching
+      const timestamp = Date.now();
+      
+      // Race between the actual request and the timeout
+      const recommendationsPromise = supabase
         .rpc('get_nutrient_recommendations', {
-          p_user_id: user.id
+          p_user_id: user.id,
+          _t: timestamp // Add timestamp parameter to prevent caching
         });
+      
+      const result = await Promise.race([
+        recommendationsPromise,
+        timeoutPromise
+      ]);
+      
+      // If result is null, it means the timeout won
+      if (result === null) {
+        throw new Error('Getting recommendations timed out');
+      }
+      
+      const { data, error } = result;
 
       if (error) throw error;
       return data || [];
     } catch (error) {
       console.error('Error fetching recommendations:', error);
-      throw new Error('Failed to fetch recommendations.');
+      
+      // Return empty array instead of throwing to prevent UI breakage
+      return [];
     }
   },
 

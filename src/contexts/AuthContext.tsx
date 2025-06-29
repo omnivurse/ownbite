@@ -39,7 +39,7 @@ export const useAuth = () => {
 };
 
 // Timeout for auth operations in milliseconds
-const AUTH_TIMEOUT = 10000; // 10 seconds
+const AUTH_TIMEOUT = 15000; // 15 seconds
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -49,6 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     let mounted = true;
+    let timeoutId: number | undefined;
 
     // Get initial session
     const getInitialSession = async () => {
@@ -71,23 +72,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
         
-        // Get from Supabase if not in cache with timeout
-        const sessionPromise = supabase.auth.getSession();
-        
-        // Create a timeout promise
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => {
+        // Set a timeout to prevent hanging
+        const timeoutPromise = new Promise<null>((_, reject) => {
+          timeoutId = setTimeout(() => {
             reject(new Error('Session retrieval timed out'));
-          }, AUTH_TIMEOUT);
+          }, AUTH_TIMEOUT) as unknown as number;
         });
         
-        // Race the session retrieval against the timeout
-        const { data: { session }, error } = await Promise.race([
-          sessionPromise,
-          timeoutPromise.then(() => {
-            throw new Error('Session retrieval timed out');
-          })
-        ]) as Awaited<typeof sessionPromise>;
+        // Race between the actual request and the timeout
+        const result = await Promise.race([
+          supabase.auth.getSession(),
+          timeoutPromise
+        ]);
+        
+        // Clear timeout if request completed
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = undefined;
+        }
+        
+        // If result is null, it means the timeout won
+        if (result === null) {
+          throw new Error('Session retrieval timed out');
+        }
+        
+        const { data: { session }, error } = result;
         
         if (error) {
           console.error('Error getting session:', error);
@@ -130,6 +139,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             toast.error('Connection timed out. Please try again.');
           }
         }
+      } finally {
+        // Ensure timeout is cleared
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
       }
     };
 
@@ -163,27 +177,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, []);
 
   // Verify the session is still valid
   const verifySession = async (cachedUser: User) => {
     try {
-      // Create a timeout promise
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
+      let timeoutId: number | undefined;
+      
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        timeoutId = setTimeout(() => {
           reject(new Error('Session verification timed out'));
-        }, AUTH_TIMEOUT);
+        }, AUTH_TIMEOUT) as unknown as number;
       });
       
-      // Race the session verification against the timeout
-      const sessionPromise = supabase.auth.getSession();
-      const { data: { session }, error } = await Promise.race([
-        sessionPromise,
-        timeoutPromise.then(() => {
-          throw new Error('Session verification timed out');
-        })
-      ]) as Awaited<typeof sessionPromise>;
+      // Race between the actual request and the timeout
+      const result = await Promise.race([
+        supabase.auth.getSession(),
+        timeoutPromise
+      ]);
+      
+      // Clear timeout if request completed
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      
+      // If result is null, it means the timeout won
+      if (result === null) {
+        throw new Error('Session verification timed out');
+      }
+      
+      const { data: { session }, error } = result;
       
       if (error || !session) {
         console.warn('Cached session is invalid, clearing cache');
@@ -214,6 +242,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loadUserProfile = async (userId: string) => {
+    let profileTimeoutId: number | undefined;
+    
     try {
       console.log(`Loading profile for user: ${userId}`);
       
@@ -227,26 +257,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      // Create a timeout promise
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        profileTimeoutId = setTimeout(() => {
           reject(new Error('Profile loading timed out'));
-        }, AUTH_TIMEOUT);
+        }, AUTH_TIMEOUT) as unknown as number;
       });
       
-      // Race the profile loading against the timeout
+      // Race between the actual request and the timeout
       const profilePromise = supabase
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
         .maybeSingle();
         
-      const { data, error } = await Promise.race([
+      const result = await Promise.race([
         profilePromise,
-        timeoutPromise.then(() => {
-          throw new Error('Profile loading timed out');
-        })
-      ]) as Awaited<typeof profilePromise>;
+        timeoutPromise
+      ]);
+      
+      // Clear timeout if request completed
+      if (profileTimeoutId) {
+        clearTimeout(profileTimeoutId);
+        profileTimeoutId = undefined;
+      }
+      
+      // If result is null, it means the timeout won
+      if (result === null) {
+        throw new Error('Profile loading timed out');
+      }
+      
+      const { data, error } = result;
 
       if (error && error.code !== 'PGRST116') throw error;
       
@@ -271,6 +312,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Error in loadUserProfile:', error);
       
+      // Clear timeout if it exists
+      if (profileTimeoutId) {
+        clearTimeout(profileTimeoutId);
+      }
+      
       // If timeout occurred, show a toast notification
       if (error instanceof Error && error.message.includes('timed out')) {
         toast.error('Profile loading timed out. Please try again.');
@@ -285,17 +331,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const createDefaultProfile = async (userId: string) => {
+    let createProfileTimeoutId: number | undefined;
+    
     try {
       console.log('Creating default profile for user:', userId);
       
-      // Create a timeout promise
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        createProfileTimeoutId = setTimeout(() => {
           reject(new Error('Profile creation timed out'));
-        }, AUTH_TIMEOUT);
+        }, AUTH_TIMEOUT) as unknown as number;
       });
       
-      // Race the profile creation against the timeout
+      // Race between the actual request and the timeout
       const createProfilePromise = supabase
         .from('profiles')
         .insert([{
@@ -307,12 +355,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .select()
         .single();
         
-      const { data, error } = await Promise.race([
+      const result = await Promise.race([
         createProfilePromise,
-        timeoutPromise.then(() => {
-          throw new Error('Profile creation timed out');
-        })
-      ]) as Awaited<typeof createProfilePromise>;
+        timeoutPromise
+      ]);
+      
+      // Clear timeout if request completed
+      if (createProfileTimeoutId) {
+        clearTimeout(createProfileTimeoutId);
+        createProfileTimeoutId = undefined;
+      }
+      
+      // If result is null, it means the timeout won
+      if (result === null) {
+        throw new Error('Profile creation timed out');
+      }
+      
+      const { data, error } = result;
 
       if (error) {
         console.error('Error creating default profile:', error);
@@ -321,18 +380,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (error.code === '23505' || error.message?.includes('duplicate key')) {
           console.log('Profile already exists, attempting to fetch...');
           
+          // Set a new timeout for fetching
+          const fetchTimeoutPromise = new Promise<null>((_, reject) => {
+            const fetchTimeoutId = setTimeout(() => {
+              reject(new Error('Profile fetch timed out'));
+            }, AUTH_TIMEOUT) as unknown as number;
+            
+            // Clean up timeout if component unmounts
+            return () => clearTimeout(fetchTimeoutId);
+          });
+          
           const fetchProfilePromise = supabase
             .from('profiles')
             .select('*')
             .eq('user_id', userId)
             .single();
             
-          const { data: existingProfile } = await Promise.race([
+          const fetchResult = await Promise.race([
             fetchProfilePromise,
-            timeoutPromise.then(() => {
-              throw new Error('Profile fetch timed out');
-            })
-          ]) as Awaited<typeof fetchProfilePromise>;
+            fetchTimeoutPromise
+          ]);
+          
+          // If result is null, it means the timeout won
+          if (fetchResult === null) {
+            throw new Error('Profile fetch timed out');
+          }
+          
+          const { data: existingProfile, error: fetchError } = fetchResult;
+          
+          if (fetchError) {
+            throw fetchError;
+          }
           
           if (existingProfile) {
             setProfile(existingProfile);
@@ -355,6 +433,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Error in createDefaultProfile:', error);
       
+      // Clear timeout if it exists
+      if (createProfileTimeoutId) {
+        clearTimeout(createProfileTimeoutId);
+      }
+      
       // If timeout occurred, show a toast notification
       if (error instanceof Error && error.message.includes('timed out')) {
         toast.error('Profile creation timed out. Please try again.');
@@ -372,29 +455,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('Attempting to sign in with email:', email);
     setLoading(true);
     
+    let signInTimeoutId: number | undefined;
+    
     try {
       // Clear any existing cache before signing in
       await clearUserCache();
       
-      // Create a timeout promise
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        signInTimeoutId = setTimeout(() => {
           reject(new Error('Sign in timed out'));
-        }, AUTH_TIMEOUT);
+        }, AUTH_TIMEOUT) as unknown as number;
       });
       
-      // Race the sign in against the timeout
+      // Race between the actual request and the timeout
       const signInPromise = supabase.auth.signInWithPassword({
         email,
         password,
       });
       
-      const { data, error } = await Promise.race([
+      const result = await Promise.race([
         signInPromise,
-        timeoutPromise.then(() => {
-          throw new Error('Sign in timed out');
-        })
-      ]) as Awaited<typeof signInPromise>;
+        timeoutPromise
+      ]);
+      
+      // Clear timeout if request completed
+      if (signInTimeoutId) {
+        clearTimeout(signInTimeoutId);
+        signInTimeoutId = undefined;
+      }
+      
+      // If result is null, it means the timeout won
+      if (result === null) {
+        throw new Error('Sign in timed out');
+      }
+      
+      const { data, error } = result;
 
       if (error) {
         console.error('Sign in error:', error);
@@ -406,6 +502,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Note: We don't need to set user/profile here as the auth state change listener will handle it
     } catch (error) {
       console.error('Error in signIn function:', error);
+      
+      // Clear timeout if it exists
+      if (signInTimeoutId) {
+        clearTimeout(signInTimeoutId);
+      }
       
       // Clear cache if there was an error
       await clearUserCache();
@@ -422,18 +523,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, password: string, fullName?: string) => {
     setLoading(true);
+    
+    let signUpTimeoutId: number | undefined;
+    
     try {
       // Clear any existing cache before signing up
       await clearUserCache();
       
-      // Create a timeout promise
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        signUpTimeoutId = setTimeout(() => {
           reject(new Error('Sign up timed out'));
-        }, AUTH_TIMEOUT);
+        }, AUTH_TIMEOUT) as unknown as number;
       });
       
-      // Race the sign up against the timeout
+      // Race between the actual request and the timeout
       const signUpPromise = supabase.auth.signUp({
         email,
         password,
@@ -444,12 +548,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       });
       
-      const { data, error } = await Promise.race([
+      const result = await Promise.race([
         signUpPromise,
-        timeoutPromise.then(() => {
-          throw new Error('Sign up timed out');
-        })
-      ]) as Awaited<typeof signUpPromise>;
+        timeoutPromise
+      ]);
+      
+      // Clear timeout if request completed
+      if (signUpTimeoutId) {
+        clearTimeout(signUpTimeoutId);
+        signUpTimeoutId = undefined;
+      }
+      
+      // If result is null, it means the timeout won
+      if (result === null) {
+        throw new Error('Sign up timed out');
+      }
+      
+      const { data, error } = result;
 
       if (error) {
         console.error('Sign up error:', error);
@@ -461,6 +576,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Note: We don't need to set user/profile here as the auth state change listener will handle it
     } catch (error) {
       console.error('Error in signUp function:', error);
+      
+      // Clear timeout if it exists
+      if (signUpTimeoutId) {
+        clearTimeout(signUpTimeoutId);
+      }
       
       // Clear cache if there was an error
       await clearUserCache();
@@ -510,15 +630,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) throw new Error('No user logged in');
     setLoading(true);
 
+    let updateProfileTimeoutId: number | undefined;
+    
     try {
-      // Create a timeout promise
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        updateProfileTimeoutId = setTimeout(() => {
           reject(new Error('Profile update timed out'));
-        }, AUTH_TIMEOUT);
+        }, AUTH_TIMEOUT) as unknown as number;
       });
       
-      // Race the profile update against the timeout
+      // Race between the actual request and the timeout
       const updateProfilePromise = supabase
         .from('profiles')
         .update({
@@ -527,12 +649,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         })
         .eq('user_id', user.id);
         
-      const { error } = await Promise.race([
+      const result = await Promise.race([
         updateProfilePromise,
-        timeoutPromise.then(() => {
-          throw new Error('Profile update timed out');
-        })
-      ]) as Awaited<typeof updateProfilePromise>;
+        timeoutPromise
+      ]);
+      
+      // Clear timeout if request completed
+      if (updateProfileTimeoutId) {
+        clearTimeout(updateProfileTimeoutId);
+        updateProfileTimeoutId = undefined;
+      }
+      
+      // If result is null, it means the timeout won
+      if (result === null) {
+        throw new Error('Profile update timed out');
+      }
+      
+      const { error } = result;
 
       if (error) {
         console.error('Update profile error:', error);
@@ -544,6 +677,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await loadUserProfile(user.id);
     } catch (error) {
       console.error('Error in updateProfile function:', error);
+      
+      // Clear timeout if it exists
+      if (updateProfileTimeoutId) {
+        clearTimeout(updateProfileTimeoutId);
+      }
       
       // Show toast notification for timeout
       if (error instanceof Error && error.message.includes('timed out')) {
