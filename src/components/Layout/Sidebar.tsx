@@ -29,6 +29,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import Button from '../ui/Button';
+import { clearUserCache } from '../../lib/cache';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -42,7 +43,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { hasActiveSubscription, hasPremiumAccess, productName, refreshSubscription } = useSubscription();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  
   // Force refresh subscription status when component mounts
   useEffect(() => {
     if (user) {
@@ -56,11 +58,17 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   const handleSignOut = async () => {
     try {
+      setIsLoggingOut(true);
+      
+      // Clear cache before signing out
+      await clearUserCache();
+      
       await signOut();
       navigate('/login');
       onClose();
     } catch (error) {
       console.error('Error signing out:', error);
+      setIsLoggingOut(false);
     }
   };
 
@@ -120,6 +128,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
           onClick={onClose}
+          aria-hidden="true"
         />
       )}
 
@@ -128,6 +137,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         } ${isCollapsed ? 'lg:w-20' : 'lg:w-64'} lg:translate-x-0 flex flex-col h-full`}
+        aria-label="Sidebar navigation"
       >
         {/* Header */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-neutral-200">
@@ -139,12 +149,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
               className="p-1 rounded-md hover:bg-neutral-100 hidden lg:block"
+              aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               {isCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
             </button>
             <button
               onClick={onClose}
               className="p-1 rounded-md hover:bg-neutral-100 lg:hidden"
+              aria-label="Close sidebar"
             >
               <X className="h-6 w-6" />
             </button>
@@ -153,7 +165,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
         {/* Navigation */}
         <div className="flex-1 overflow-y-auto py-4">
-          <div className="space-y-1 px-2">
+          <nav className="space-y-1 px-2" aria-label="Main navigation">
             {(profile?.role === 'admin' ? adminNavItems : navItems).map((item) => {
               const Icon = item.icon;
               return (
@@ -168,6 +180,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                       : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
                     }
                   `}
+                  aria-current={isActive(item.href) ? 'page' : undefined}
                 >
                   <Icon className={`h-5 w-5 ${isCollapsed ? 'mx-auto' : 'mr-3'}`} />
                   {!isCollapsed && (
@@ -183,7 +196,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 </Link>
               );
             })}
-          </div>
+          </nav>
         </div>
 
         {/* User Profile Section */}
@@ -214,8 +227,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             className={`${isCollapsed ? 'p-2 w-10 h-10' : 'w-full'}`}
             leftIcon={isCollapsed ? undefined : <LogOut className="h-4 w-4" />}
             onClick={handleSignOut}
+            disabled={isLoggingOut}
           >
-            {isCollapsed ? <LogOut className="h-4 w-4" /> : "Sign Out"}
+            {isCollapsed ? <LogOut className="h-4 w-4" /> : isLoggingOut ? "Signing Out..." : "Sign Out"}
           </Button>
         </div>
       </div>

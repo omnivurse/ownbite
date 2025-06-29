@@ -23,6 +23,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   }, [user]);
 
+  // Close sidebar when window is resized to desktop size
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) { // lg breakpoint
+        setSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
@@ -33,6 +45,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <button
             className="fixed bottom-4 left-4 z-30 lg:hidden bg-primary-600 text-white p-3 rounded-full shadow-lg"
             onClick={() => setSidebarOpen(true)}
+            aria-label="Open menu"
           >
             <Menu className="h-6 w-6" />
           </button>
@@ -44,7 +57,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         )}
         
         {/* Main content - adjust margin only for authenticated users */}
-        <div className={`flex-1 ${user ? 'lg:ml-64' : ''} transition-all duration-300`}>
+        <div className={`flex-1 ${user ? 'lg:ml-64' : ''} transition-all duration-300 w-full`}>
           {children}
         </div>
       </div>

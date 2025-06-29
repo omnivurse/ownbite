@@ -1,48 +1,49 @@
 import React from 'react';
 import { Heart } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Footer: React.FC = () => {
   return (
-    <footer className="bg-neutral-800 text-white py-8">
+    <footer className="bg-neutral-800 text-white py-6 sm:py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
           <div>
-            <h3 className="text-lg font-semibold mb-4">OwnBite</h3>
-            <p className="text-neutral-300 text-sm">
+            <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-4">OwnBite</h3>
+            <p className="text-neutral-300 text-xs sm:text-sm">
               AI-powered food scanning and nutrition tracking to help you make healthier choices.
             </p>
           </div>
           
           <div>
-            <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
-            <ul className="space-y-2 text-sm">
-              <li><a href="/scan" className="text-neutral-300 hover:text-white transition-colors">Scan Food</a></li>
-              <li><a href="/recipes" className="text-neutral-300 hover:text-white transition-colors">Recipes</a></li>
-              <li><a href="/coach" className="text-neutral-300 hover:text-white transition-colors">Nutrition Coach</a></li>
-              <li><a href="/about" className="text-neutral-300 hover:text-white transition-colors">About Us</a></li>
+            <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-4">Quick Links</h3>
+            <ul className="space-y-1 sm:space-y-2 text-xs sm:text-sm">
+              <li><Link to="/scan" className="text-neutral-300 hover:text-white transition-colors">Scan Food</Link></li>
+              <li><Link to="/recipes" className="text-neutral-300 hover:text-white transition-colors">Recipes</Link></li>
+              <li><Link to="/coach" className="text-neutral-300 hover:text-white transition-colors">Nutrition Coach</Link></li>
+              <li><Link to="/about" className="text-neutral-300 hover:text-white transition-colors">About Us</Link></li>
             </ul>
           </div>
           
           <div>
-            <h3 className="text-lg font-semibold mb-4">Contact Us</h3>
-            <p className="text-neutral-300 text-sm mb-2">
+            <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-4">Contact Us</h3>
+            <p className="text-neutral-300 text-xs sm:text-sm mb-2">
               Have questions or feedback? Reach out to our team.
             </p>
             <a 
               href="mailto:support@ownbite.app" 
-              className="inline-block text-primary-400 hover:text-primary-300 transition-colors"
+              className="inline-block text-primary-400 hover:text-primary-300 transition-colors text-xs sm:text-sm"
             >
               support@ownbite.app
             </a>
           </div>
         </div>
         
-        <div className="mt-8 pt-6 border-t border-neutral-700 flex flex-col md:flex-row justify-between items-center">
-          <p className="text-neutral-400 text-sm">
+        <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-neutral-700 flex flex-col md:flex-row justify-between items-center">
+          <p className="text-neutral-400 text-xs sm:text-sm">
             &copy; {new Date().getFullYear()} OwnBite. All rights reserved.
           </p>
-          <p className="text-neutral-400 text-sm flex items-center mt-2 md:mt-0">
-            Made with <Heart className="h-4 w-4 text-secondary-500 mx-1" /> for healthier living
+          <p className="text-neutral-400 text-xs sm:text-sm flex items-center mt-2 md:mt-0">
+            Made with <Heart className="h-3 w-3 sm:h-4 sm:w-4 text-secondary-500 mx-1" /> for healthier living
           </p>
         </div>
       </div>

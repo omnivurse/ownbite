@@ -29,9 +29,9 @@ const Button: React.FC<ButtonProps> = ({
 
   // Button sizes
   const sizes = {
-    sm: 'py-1 px-3 text-sm',
-    md: 'py-2 px-4 text-base',
-    lg: 'py-3 px-5 text-lg',
+    sm: 'py-1 px-2 text-xs sm:py-1 sm:px-3 sm:text-sm',
+    md: 'py-1.5 px-3 text-sm sm:py-2 sm:px-4 sm:text-base',
+    lg: 'py-2 px-4 text-base sm:py-3 sm:px-5 sm:text-lg',
   };
 
   // Disabled state
@@ -54,10 +54,11 @@ const Button: React.FC<ButtonProps> = ({
     >
       {isLoading && (
         <svg 
-          className="animate-spin -ml-1 mr-2 h-4 w-4 text-current" 
+          className="animate-spin -ml-1 mr-2 h-3 w-3 sm:h-4 sm:w-4 text-current" 
           xmlns="http://www.w3.org/2000/svg" 
           fill="none" 
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
           <circle 
             className="opacity-25" 
@@ -76,13 +77,13 @@ const Button: React.FC<ButtonProps> = ({
       )}
       
       {!isLoading && leftIcon && (
-        <span className="mr-2">{leftIcon}</span>
+        <span className="mr-1.5 sm:mr-2 flex-shrink-0">{leftIcon}</span>
       )}
       
-      {children}
+      <span className="whitespace-nowrap">{children}</span>
       
       {!isLoading && rightIcon && (
-        <span className="ml-2">{rightIcon}</span>
+        <span className="ml-1.5 sm:ml-2 flex-shrink-0">{rightIcon}</span>
       )}
     </button>
   );

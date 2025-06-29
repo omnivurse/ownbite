@@ -36,7 +36,7 @@ const NutritionSummary: React.FC<NutritionSummaryProps> = ({ userId }) => {
           .select('calories, protein, carbs, fat')
           .eq('user_id', userId)
           .gte('timestamp', today.toISOString());
-        
+          
         if (entriesError) throw entriesError;
         
         // Calculate totals from entries
@@ -105,16 +105,16 @@ const NutritionSummary: React.FC<NutritionSummaryProps> = ({ userId }) => {
       <Card>
         <CardBody>
           <div className="animate-pulse space-y-4">
-            <div className="h-6 bg-neutral-200 rounded w-1/4"></div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="h-5 sm:h-6 bg-neutral-200 rounded w-1/4"></div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="space-y-2">
-                  <div className="h-4 bg-neutral-200 rounded w-1/2"></div>
-                  <div className="h-6 bg-neutral-200 rounded w-3/4"></div>
+                  <div className="h-3 sm:h-4 bg-neutral-200 rounded w-1/2"></div>
+                  <div className="h-5 sm:h-6 bg-neutral-200 rounded w-3/4"></div>
                 </div>
               ))}
             </div>
-            <div className="h-4 bg-neutral-200 rounded w-1/3"></div>
+            <div className="h-3 sm:h-4 bg-neutral-200 rounded w-1/3"></div>
           </div>
         </CardBody>
       </Card>
@@ -135,8 +135,8 @@ const NutritionSummary: React.FC<NutritionSummaryProps> = ({ userId }) => {
     return (
       <Card>
         <CardBody>
-          <h2 className="text-xl font-semibold mb-4">📊 Nutrition Summary</h2>
-          <p className="text-neutral-600">No nutrition data available yet. Start tracking your meals to see your summary.</p>
+          <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">📊 Nutrition Summary</h2>
+          <p className="text-neutral-600 text-sm sm:text-base">No nutrition data available yet. Start tracking your meals to see your summary.</p>
         </CardBody>
       </Card>
     );
@@ -145,44 +145,44 @@ const NutritionSummary: React.FC<NutritionSummaryProps> = ({ userId }) => {
   return (
     <Card>
       <CardBody>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold flex items-center">
-            <Target className="h-5 w-5 mr-2 text-primary-600" />
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <h2 className="text-lg sm:text-xl font-semibold flex items-center">
+            <Target className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2 text-primary-600" />
             Nutrition Summary
           </h2>
           {summary.goals_met_today && (
-            <div className="flex items-center text-green-600 text-sm font-medium">
-              <Award className="h-4 w-4 mr-1" />
+            <div className="flex items-center text-green-600 text-xs sm:text-sm font-medium">
+              <Award className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
               Goals Met Today!
             </div>
           )}
         </div>
         
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-          <div className="text-center p-3 bg-primary-50 rounded-lg">
-            <div className="text-2xl font-bold text-primary-600">{summary.calories_today}</div>
-            <div className="text-sm text-neutral-600">Calories</div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 mb-3 sm:mb-4">
+          <div className="text-center p-2 sm:p-3 bg-primary-50 rounded-lg">
+            <div className="text-lg sm:text-2xl font-bold text-primary-600">{summary.calories_today}</div>
+            <div className="text-xs sm:text-sm text-neutral-600">Calories</div>
           </div>
-          <div className="text-center p-3 bg-blue-50 rounded-lg">
-            <div className="text-2xl font-bold text-blue-600">{summary.protein_g}g</div>
-            <div className="text-sm text-neutral-600">Protein</div>
+          <div className="text-center p-2 sm:p-3 bg-blue-50 rounded-lg">
+            <div className="text-lg sm:text-2xl font-bold text-blue-600">{summary.protein_g}g</div>
+            <div className="text-xs sm:text-sm text-neutral-600">Protein</div>
           </div>
-          <div className="text-center p-3 bg-purple-50 rounded-lg">
-            <div className="text-2xl font-bold text-purple-600">{summary.carbs_g}g</div>
-            <div className="text-sm text-neutral-600">Carbs</div>
+          <div className="text-center p-2 sm:p-3 bg-purple-50 rounded-lg">
+            <div className="text-lg sm:text-2xl font-bold text-purple-600">{summary.carbs_g}g</div>
+            <div className="text-xs sm:text-sm text-neutral-600">Carbs</div>
           </div>
-          <div className="text-center p-3 bg-yellow-50 rounded-lg">
-            <div className="text-2xl font-bold text-yellow-600">{summary.fat_g}g</div>
-            <div className="text-sm text-neutral-600">Fat</div>
+          <div className="text-center p-2 sm:p-3 bg-yellow-50 rounded-lg">
+            <div className="text-lg sm:text-2xl font-bold text-yellow-600">{summary.fat_g}g</div>
+            <div className="text-xs sm:text-sm text-neutral-600">Fat</div>
           </div>
         </div>
         
-        <div className="flex items-center justify-between text-sm">
+        <div className="flex items-center justify-between text-xs sm:text-sm">
           <div className="text-neutral-500">
             Updated today
           </div>
           <div className="flex items-center text-primary-600 font-medium">
-            <TrendingUp className="h-4 w-4 mr-1" />
+            <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
             Streak: {summary.streak_days} days
           </div>
         </div>

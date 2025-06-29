@@ -115,18 +115,21 @@ const FoodScanner: React.FC<FoodScannerProps> = ({ onScanComplete, className = '
   };
 
   return (
-    <div className={`space-y-6 ${className}`}>
+    <div className={`space-y-4 sm:space-y-6 ${className}`}>
       {/* Upload Area */}
       <Card>
         <CardBody>
           <div
             className={`
-              border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+              border-2 border-dashed rounded-lg p-4 sm:p-8 text-center cursor-pointer transition-colors
               ${imagePreview ? 'border-primary-300 bg-primary-50' : 'border-neutral-300 hover:border-primary-400'}
             `}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onClick={() => fileInputRef.current?.click()}
+            role="button"
+            tabIndex={0}
+            aria-label="Upload food image"
           >
             <input
               ref={fileInputRef}
@@ -134,16 +137,17 @@ const FoodScanner: React.FC<FoodScannerProps> = ({ onScanComplete, className = '
               accept="image/*"
               onChange={handleFileUpload}
               className="hidden"
+              aria-hidden="true"
             />
 
             {imagePreview ? (
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <img
                   src={imagePreview}
                   alt="Food to analyze"
-                  className="max-w-full max-h-64 mx-auto rounded-lg shadow-md"
+                  className="max-w-full max-h-48 sm:max-h-64 mx-auto rounded-lg shadow-md"
                 />
-                <div className="flex justify-center space-x-3">
+                <div className="flex flex-col sm:flex-row justify-center gap-2 sm:space-x-3">
                   <Button
                     variant="outline"
                     onClick={(e) => {
@@ -151,6 +155,8 @@ const FoodScanner: React.FC<FoodScannerProps> = ({ onScanComplete, className = '
                       resetScanner();
                     }}
                     leftIcon={<RefreshCw className="h-4 w-4" />}
+                    size="sm"
+                    className="sm:size-md"
                   >
                     Choose Different Image
                   </Button>
@@ -162,24 +168,26 @@ const FoodScanner: React.FC<FoodScannerProps> = ({ onScanComplete, className = '
                     }}
                     disabled={loading}
                     leftIcon={loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                    size="sm"
+                    className="sm:size-md"
                   >
                     {loading ? 'Analyzing...' : 'Analyze Food'}
                   </Button>
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div className="flex justify-center">
-                  <Upload className="h-12 w-12 text-neutral-400" />
+                  <Upload className="h-8 w-8 sm:h-12 sm:w-12 text-neutral-400" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-medium text-neutral-900 mb-2">
+                  <h3 className="text-base sm:text-lg font-medium text-neutral-900 mb-1 sm:mb-2">
                     📷 Upload Food Photo
                   </h3>
-                  <p className="text-neutral-600 mb-4">
+                  <p className="text-sm sm:text-base text-neutral-600 mb-2 sm:mb-4">
                     Drag and drop an image here, or click to browse
                   </p>
-                  <p className="text-sm text-neutral-500">
+                  <p className="text-xs sm:text-sm text-neutral-500">
                     Supported formats: JPG, PNG, WebP (max 10MB)
                   </p>
                 </div>
@@ -191,13 +199,13 @@ const FoodScanner: React.FC<FoodScannerProps> = ({ onScanComplete, className = '
 
       {/* Error Display */}
       {error && (
-        <div className={`p-4 rounded-lg flex items-center space-x-2 ${
+        <div className={`p-3 sm:p-4 rounded-lg flex items-center space-x-2 ${
           error.includes('✅') 
             ? 'bg-green-50 text-green-700 border border-green-200'
             : 'bg-red-50 text-red-700 border border-red-200'
         }`}>
-          <AlertCircle className="h-5 w-5 flex-shrink-0" />
-          <span>{error}</span>
+          <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+          <span className="text-sm sm:text-base">{error}</span>
         </div>
       )}
 
@@ -205,13 +213,13 @@ const FoodScanner: React.FC<FoodScannerProps> = ({ onScanComplete, className = '
       {results && (
         <Card>
           <CardBody>
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Nutrition Summary */}
               <div>
-                <h3 className="text-xl font-bold text-neutral-900 mb-4">
+                <h3 className="text-lg sm:text-xl font-bold text-neutral-900 mb-3 sm:mb-4">
                   🍽️ Nutritional Analysis
                 </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                   <NutritionStat
                     label="Calories"
                     value={`${results.totalCalories}`}
@@ -245,10 +253,10 @@ const FoodScanner: React.FC<FoodScannerProps> = ({ onScanComplete, className = '
 
               {/* Individual Food Items */}
               <div>
-                <h4 className="text-lg font-semibold text-neutral-900 mb-3">
+                <h4 className="text-base sm:text-lg font-semibold text-neutral-900 mb-2 sm:mb-3">
                   🔍 Identified Foods
                 </h4>
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {results.foodItems.map((item: any, index: number) => (
                     <FoodItemCard key={index} item={item} />
                   ))}
@@ -257,27 +265,33 @@ const FoodScanner: React.FC<FoodScannerProps> = ({ onScanComplete, className = '
             </div>
           </CardBody>
           
-          <CardFooter className="flex justify-between">
+          <CardFooter className="flex flex-col sm:flex-row justify-between gap-2 sm:gap-0">
             <Button
               variant="outline"
               onClick={resetScanner}
               leftIcon={<RefreshCw className="h-4 w-4" />}
+              size="sm"
+              className="sm:size-md w-full sm:w-auto"
             >
               Scan Another
             </Button>
-            <div className="flex space-x-2">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               <SocialShareButton
                 contentType="food_scan"
                 contentId={results.id || "latest"}
                 contentName={results.foodItems[0]?.name || "food"}
                 imageUrl={imagePreview || undefined}
                 variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
               />
               <Button
                 variant="primary"
                 onClick={saveToDiary}
                 disabled={saving}
                 leftIcon={saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                size="sm"
+                className="sm:size-md w-full sm:w-auto"
               >
                 {saving ? 'Saving...' : 'Save to Diary'}
               </Button>
@@ -289,12 +303,12 @@ const FoodScanner: React.FC<FoodScannerProps> = ({ onScanComplete, className = '
       {/* Loading State */}
       {loading && (
         <Card>
-          <CardBody className="text-center py-12">
-            <Loader2 className="h-12 w-12 animate-spin text-primary-600 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-neutral-900 mb-2">
+          <CardBody className="text-center py-8 sm:py-12">
+            <Loader2 className="h-8 w-8 sm:h-12 sm:w-12 animate-spin text-primary-600 mx-auto mb-3 sm:mb-4" />
+            <h3 className="text-base sm:text-lg font-medium text-neutral-900 mb-1 sm:mb-2">
               Analyzing Your Food...
             </h3>
-            <p className="text-neutral-600">
+            <p className="text-sm sm:text-base text-neutral-600">
               Our AI is identifying ingredients and calculating nutrition facts
             </p>
           </CardBody>
@@ -320,11 +334,11 @@ const NutritionStat: React.FC<NutritionStatProps> = ({
   textColor
 }) => {
   return (
-    <div className={`${bgColor} rounded-lg p-4 text-center`}>
-      <div className="text-sm text-neutral-600 mb-1">{label}</div>
-      <div className={`text-2xl font-bold ${textColor}`}>
+    <div className={`${bgColor} rounded-lg p-3 sm:p-4 text-center`}>
+      <div className="text-xs sm:text-sm text-neutral-600 mb-1">{label}</div>
+      <div className={`text-lg sm:text-2xl font-bold ${textColor}`}>
         {value}
-        <span className="text-sm font-normal ml-1">{unit}</span>
+        <span className="text-xs sm:text-sm font-normal ml-1">{unit}</span>
       </div>
     </div>
   );
@@ -344,13 +358,13 @@ interface FoodItemCardProps {
 
 const FoodItemCard: React.FC<FoodItemCardProps> = ({ item }) => {
   return (
-    <div className="p-4 border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors">
-      <div className="flex justify-between items-start mb-3">
-        <h5 className="font-medium text-neutral-900 capitalize">{item.name}</h5>
-        <span className="text-primary-600 font-medium">{item.calories} cal</span>
+    <div className="p-3 sm:p-4 border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors">
+      <div className="flex justify-between items-start mb-2 sm:mb-3">
+        <h5 className="font-medium text-sm sm:text-base text-neutral-900 capitalize">{item.name}</h5>
+        <span className="text-sm sm:text-base text-primary-600 font-medium">{item.calories} cal</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 text-sm text-neutral-600 mb-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4 text-xs sm:text-sm text-neutral-600 mb-2 sm:mb-3">
         <div>Protein: <span className="font-medium">{item.protein}g</span></div>
         <div>Carbs: <span className="font-medium">{item.carbs}g</span></div>
         <div>Fat: <span className="font-medium">{item.fat}g</span></div>
@@ -358,13 +372,13 @@ const FoodItemCard: React.FC<FoodItemCardProps> = ({ item }) => {
 
       {/* Health Benefits and Risks */}
       {(item.healthBenefits?.length || item.healthRisks?.length) && (
-        <div className="space-y-2">
+        <div className="space-y-1 sm:space-y-2">
           {item.healthBenefits && item.healthBenefits.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {item.healthBenefits.map((benefit, index) => (
                 <span
                   key={index}
-                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"
+                  className="inline-flex items-center px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"
                 >
                   ✓ {benefit}
                 </span>
@@ -377,7 +391,7 @@ const FoodItemCard: React.FC<FoodItemCardProps> = ({ item }) => {
               {item.healthRisks.map((risk, index) => (
                 <span
                   key={index}
-                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"
+                  className="inline-flex items-center px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"
                 >
                   ⚠ {risk}
                 </span>

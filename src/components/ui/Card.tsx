@@ -35,7 +35,7 @@ export const CardHeader: React.FC<{ children: ReactNode; className?: string }> =
   className = '' 
 }) => {
   return (
-    <div className={`px-4 py-5 sm:px-6 border-b border-neutral-200 ${className}`}>
+    <div className={`px-3 py-4 sm:px-4 sm:py-5 md:px-6 border-b border-neutral-200 ${className}`}>
       {children}
     </div>
   );
@@ -46,7 +46,7 @@ export const CardBody: React.FC<{ children: ReactNode; className?: string }> = (
   className = '' 
 }) => {
   return (
-    <div className={`px-4 py-5 sm:p-6 ${className}`}>
+    <div className={`px-3 py-4 sm:px-4 sm:py-5 md:px-6 ${className}`}>
       {children}
     </div>
   );
@@ -57,7 +57,7 @@ export const CardFooter: React.FC<{ children: ReactNode; className?: string }> =
   className = '' 
 }) => {
   return (
-    <div className={`px-4 py-4 sm:px-6 border-t border-neutral-200 ${className}`}>
+    <div className={`px-3 py-3 sm:px-4 sm:py-4 md:px-6 border-t border-neutral-200 ${className}`}>
       {children}
     </div>
   );

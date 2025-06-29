@@ -36,14 +36,14 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ userId }) => {
         <CardBody>
           <div className="animate-pulse space-y-4">
             <div className="flex items-center space-x-4">
-              <div className="h-16 w-16 bg-neutral-200 rounded-full"></div>
+              <div className="h-12 w-12 sm:h-16 sm:w-16 bg-neutral-200 rounded-full"></div>
               <div className="space-y-2 flex-1">
-                <div className="h-5 bg-neutral-200 rounded w-1/3"></div>
-                <div className="h-4 bg-neutral-200 rounded w-1/4"></div>
+                <div className="h-4 sm:h-5 bg-neutral-200 rounded w-1/3"></div>
+                <div className="h-3 sm:h-4 bg-neutral-200 rounded w-1/4"></div>
               </div>
             </div>
-            <div className="h-4 bg-neutral-200 rounded w-full"></div>
-            <div className="h-4 bg-neutral-200 rounded w-3/4"></div>
+            <div className="h-3 sm:h-4 bg-neutral-200 rounded w-full"></div>
+            <div className="h-3 sm:h-4 bg-neutral-200 rounded w-3/4"></div>
           </div>
         </CardBody>
       </Card>
@@ -53,27 +53,27 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ userId }) => {
   return (
     <Card>
       <CardBody>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0 mb-4">
           <div className="flex items-center space-x-4">
-            <div className="h-16 w-16 bg-primary-100 rounded-full flex items-center justify-center">
+            <div className="h-12 w-12 sm:h-16 sm:w-16 bg-primary-100 rounded-full flex items-center justify-center">
               {profile?.avatar_url ? (
                 <img 
                   src={profile.avatar_url} 
                   alt={profile.full_name || 'User'} 
-                  className="h-16 w-16 rounded-full object-cover"
+                  className="h-12 w-12 sm:h-16 sm:w-16 rounded-full object-cover"
                 />
               ) : (
-                <User className="h-8 w-8 text-primary-600" />
+                <User className="h-6 w-6 sm:h-8 sm:w-8 text-primary-600" />
               )}
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-neutral-900">
+              <h2 className="text-lg sm:text-xl font-semibold text-neutral-900">
                 {profile?.full_name || user.email?.split('@')[0] || 'User'}
               </h2>
-              <p className="text-neutral-600">{user.email}</p>
+              <p className="text-sm text-neutral-600">{user.email}</p>
             </div>
           </div>
-          <Link to="/profile">
+          <Link to="/profile" className="sm:self-start">
             <Button 
               variant="outline" 
               size="sm"
@@ -89,11 +89,11 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ userId }) => {
           <div className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg">
             <div className="flex items-center">
               {hasActiveSubscription ? (
-                <Award className="h-5 w-5 text-primary-600 mr-2" />
+                <Award className="h-4 w-4 sm:h-5 sm:w-5 text-primary-600 mr-2" />
               ) : (
-                <User className="h-5 w-5 text-neutral-500 mr-2" />
+                <User className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-500 mr-2" />
               )}
-              <span className="font-medium">
+              <span className="text-sm sm:text-base font-medium">
                 {hasActiveSubscription ? `${productName || 'Ultimate Wellbeing'} Member` : 'Free Account'}
               </span>
             </div>
@@ -105,11 +105,11 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ userId }) => {
           </div>
           
           {/* User Details */}
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
             <div>
               <p className="text-neutral-500">Member Since</p>
               <p className="font-medium flex items-center">
-                <Calendar className="h-4 w-4 mr-1 text-neutral-400" />
+                <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1 text-neutral-400" />
                 {joinDate}
               </p>
             </div>
@@ -118,22 +118,22 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ userId }) => {
               <div>
                 <p className="text-neutral-500">Role</p>
                 <p className="font-medium flex items-center text-red-600">
-                  <Shield className="h-4 w-4 mr-1" />
+                  <Shield className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                   Administrator
                 </p>
               </div>
             )}
             
             {profile?.health_goals && profile.health_goals.length > 0 && (
-              <div className="col-span-2">
+              <div className="col-span-1 sm:col-span-2">
                 <p className="text-neutral-500">Health Goals</p>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {profile.health_goals.map((goal, index) => (
                     <span 
                       key={index}
-                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800"
+                      className="inline-flex items-center px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800"
                     >
-                      <Target className="h-3 w-3 mr-1" />
+                      <Target className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
                       {goal}
                     </span>
                   ))}
@@ -142,13 +142,13 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ userId }) => {
             )}
             
             {profile?.dietary_preferences && profile.dietary_preferences.length > 0 && (
-              <div className="col-span-2">
+              <div className="col-span-1 sm:col-span-2">
                 <p className="text-neutral-500">Dietary Preferences</p>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {profile.dietary_preferences.map((pref, index) => (
                     <span 
                       key={index}
-                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                      className="inline-flex items-center px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                     >
                       {pref}
                     </span>
