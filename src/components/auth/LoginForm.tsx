@@ -223,21 +223,21 @@ const LoginForm: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center mb-4">
-            <div className="p-3 bg-primary-600 rounded-full">
-              <Scan className="h-8 w-8 text-white" />
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="flex items-center justify-center mb-3 sm:mb-4">
+            <div className="p-2 sm:p-3 bg-primary-600 rounded-full">
+              <Scan className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-neutral-900 mb-2">Welcome to OwnBite</h1>
-          <p className="text-neutral-600 mt-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 mb-1 sm:mb-2">Welcome to OwnBite</h1>
+          <p className="text-sm sm:text-base text-neutral-600">
             {isSignUp ? 'Create your account to get started' : 'Sign in to your account'}
           </p>
         </div>
 
-        <Card>
-          <CardBody>
-            <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+        <Card className="shadow-lg">
+          <CardBody className="p-4 sm:p-6">
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6" noValidate>
               {isSignUp && (
                 <div>
                   <label htmlFor="fullName" className="block text-sm font-medium text-neutral-700 mb-1">
@@ -251,10 +251,11 @@ const LoginForm: React.FC = () => {
                     className={getInputClassName('fullName')}
                     placeholder="Enter your full name"
                     required={isSignUp}
+                    autoComplete="name"
                   />
                   {validationErrors.fullName && (
-                    <div className="mt-1 flex items-center text-sm text-red-600">
-                      <AlertCircle className="h-4 w-4 mr-1" />
+                    <div className="mt-1 flex items-center text-xs sm:text-sm text-red-600">
+                      <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                       {validationErrors.fullName}
                     </div>
                   )}
@@ -267,7 +268,7 @@ const LoginForm: React.FC = () => {
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="h-5 w-5 text-neutral-400" />
+                    <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
                   </div>
                   <input
                     id="email"
@@ -281,8 +282,8 @@ const LoginForm: React.FC = () => {
                   />
                 </div>
                 {validationErrors.email && (
-                  <div className="mt-1 flex items-center text-sm text-red-600">
-                    <AlertCircle className="h-4 w-4 mr-1" />
+                  <div className="mt-1 flex items-center text-xs sm:text-sm text-red-600">
+                    <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                     {validationErrors.email}
                   </div>
                 )}
@@ -296,7 +297,7 @@ const LoginForm: React.FC = () => {
                   {!isSignUp && (
                     <Link 
                       to="/forgot-password" 
-                      className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                      className="text-xs sm:text-sm text-primary-600 hover:text-primary-700 font-medium"
                     >
                       Forgot Password?
                     </Link>
@@ -304,7 +305,7 @@ const LoginForm: React.FC = () => {
                 </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="h-5 w-5 text-neutral-400" />
+                    <Lock className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
                   </div>
                   <input
                     id="password"
@@ -321,26 +322,27 @@ const LoginForm: React.FC = () => {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? (
-                      <EyeOff className="h-5 w-5 text-neutral-400" />
+                      <EyeOff className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
                     ) : (
-                      <Eye className="h-5 w-5 text-neutral-400" />
+                      <Eye className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-400" />
                     )}
                   </button>
                 </div>
                 {validationErrors.password && (
-                  <div className="mt-1 flex items-center text-sm text-red-600">
-                    <AlertCircle className="h-4 w-4 mr-1" />
+                  <div className="mt-1 flex items-center text-xs sm:text-sm text-red-600">
+                    <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                     {validationErrors.password}
                   </div>
                 )}
               </div>
 
               {error && (
-                <div className="p-3 rounded-md text-sm bg-red-50 text-red-700 border border-red-200">
+                <div className="p-2 sm:p-3 rounded-md text-xs sm:text-sm bg-red-50 text-red-700 border border-red-200">
                   <div className="flex items-start">
-                    <AlertCircle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
+                    <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 mt-0.5 flex-shrink-0" />
                     <div>
                       {error}
                       {loginAttempts >= 2 && !isSignUp && (
@@ -348,7 +350,7 @@ const LoginForm: React.FC = () => {
                           <button
                             type="button"
                             onClick={handleClearCache}
-                            className="text-red-600 underline hover:text-red-800"
+                            className="text-red-600 underline hover:text-red-800 text-xs sm:text-sm"
                             disabled={clearingCache}
                           >
                             {clearingCache ? 'Clearing cache...' : 'Clear browser cache'}
@@ -361,33 +363,35 @@ const LoginForm: React.FC = () => {
               )}
 
               {success && (
-                <div className="p-3 rounded-md text-sm bg-green-50 text-green-700 border border-green-200">
+                <div className="p-2 sm:p-3 rounded-md text-xs sm:text-sm bg-green-50 text-green-700 border border-green-200">
                   {success}
                 </div>
               )}
 
               <Button
                 type="submit"
-                className="w-full"
+                className="w-full py-2 sm:py-3"
                 isLoading={isLoading || authLoading || clearingCache}
                 disabled={isLoading || authLoading || clearingCache}
               >
                 {isLoading || authLoading || clearingCache ? (
-                  <span className="flex items-center">
-                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                    {clearingCache ? 'Clearing Cache...' : isSignUp ? 'Creating Account...' : 'Signing In...'}
+                  <span className="flex items-center justify-center">
+                    <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2 animate-spin" />
+                    <span className="text-sm sm:text-base">
+                      {clearingCache ? 'Clearing Cache...' : isSignUp ? 'Creating Account...' : 'Signing In...'}
+                    </span>
                   </span>
                 ) : (
-                  isSignUp ? 'Create Account' : 'Sign In'
+                  <span className="text-sm sm:text-base">{isSignUp ? 'Create Account' : 'Sign In'}</span>
                 )}
               </Button>
             </form>
 
-            <div className="mt-6 text-center">
+            <div className="mt-4 sm:mt-6 text-center">
               <button
                 type="button"
                 onClick={handleModeSwitch}
-                className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                className="text-primary-600 hover:text-primary-700 text-xs sm:text-sm font-medium"
               >
                 {isSignUp 
                   ? 'Already have an account? Sign in' 
@@ -396,16 +400,16 @@ const LoginForm: React.FC = () => {
               </button>
             </div>
 
-            <div className="mt-6 text-center">
+            <div className="mt-3 sm:mt-4 text-center">
               <Link 
                 to="/onboarding" 
-                className="text-secondary-500 hover:text-secondary-600 text-sm font-medium"
+                className="text-secondary-500 hover:text-secondary-600 text-xs sm:text-sm font-medium"
               >
                 Or continue with our guided setup
               </Link>
             </div>
             
-            <div className="mt-6 text-center">
+            <div className="mt-4 sm:mt-6 text-center">
               <button
                 type="button"
                 onClick={handleClearCache}
