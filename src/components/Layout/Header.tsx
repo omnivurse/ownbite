@@ -84,26 +84,6 @@ const Header: React.FC = () => {
             </Link>
           </div>
           
-          {/* Mobile menu button */}
-          {!user && (
-            <div className="flex md:hidden items-center">
-              <button
-                type="button"
-                className="p-2 rounded-md text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100"
-                onClick={toggleMobileMenu}
-                aria-expanded={isMobileMenuOpen}
-                aria-controls="mobile-menu"
-              >
-                <span className="sr-only">{isMobileMenuOpen ? 'Close menu' : 'Open menu'}</span>
-                {isMobileMenuOpen ? (
-                  <X className="h-6 w-6" aria-hidden="true" />
-                ) : (
-                  <Menu className="h-6 w-6" aria-hidden="true" />
-                )}
-              </button>
-            </div>
-          )}
-          
           <div className="flex items-center space-x-2 sm:space-x-4">
             {user ? (
               <div className="relative">
@@ -250,6 +230,24 @@ const Header: React.FC = () => {
               </div>
             ) : (
               <>
+                {/* Mobile menu button - moved to the right */}
+                <div className="md:hidden">
+                  <button
+                    type="button"
+                    className="p-2 rounded-md text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100"
+                    onClick={toggleMobileMenu}
+                    aria-expanded={isMobileMenuOpen}
+                    aria-controls="mobile-menu"
+                  >
+                    <span className="sr-only">{isMobileMenuOpen ? 'Close menu' : 'Open menu'}</span>
+                    {isMobileMenuOpen ? (
+                      <X className="h-6 w-6" aria-hidden="true" />
+                    ) : (
+                      <Menu className="h-6 w-6" aria-hidden="true" />
+                    )}
+                  </button>
+                </div>
+                
                 {/* Desktop navigation for non-authenticated users */}
                 <div className="hidden md:flex items-center space-x-3">
                   <Link to="/pricing">
