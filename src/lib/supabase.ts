@@ -40,13 +40,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
         headers['Content-Type'] = 'application/json';
       }
 
-      // Add a timestamp to GET requests to prevent caching
-      if (method === 'GET') {
-        const url = new URL(args[0].toString());
-        url.searchParams.set('_t', Date.now().toString());
-        args[0] = url.toString();
-      }
-
       const fetchOptions = {
         ...args[1],
         headers
