@@ -259,7 +259,7 @@ export const bloodworkService = {
       // Analyze each nutrient and create status records
       const statusPromises = nutrients.map(async (nutrient) => {
         // Get analysis status
-        const statusPromise = supabase
+        const rpcPromise = supabase
           .rpc('analyze_nutrient_status', {
             p_user_id: user.id,
             p_nutrient_name: nutrient.name,
@@ -267,14 +267,14 @@ export const bloodworkService = {
             p_unit: nutrient.unit
           });
         
-        const statusResult = await Promise.race([
-          statusPromise,
+        const rpcResult = await Promise.race([
+          rpcPromise,
           timeoutPromise.then(() => {
             throw new Error('Analyzing nutrient status timed out');
           })
         ]);
         
-        const { data: statusResult, error: statusError } = statusResult;
+        const { data: statusDataFromRpc, error: statusError } = rpcResult;
 
         if (statusError) throw statusError;
 
@@ -287,7 +287,7 @@ export const bloodworkService = {
             nutrient_name: nutrient.name,
             current_value: nutrient.value,
             unit: nutrient.unit,
-            status: statusResult
+            status: statusDataFromRpc
           }])
           .select()
           .single();
