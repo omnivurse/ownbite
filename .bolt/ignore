@@ -1,0 +1,17 @@
+node_modules
+dist
+build
+.cache
+.next
+.vite
+coverage
+public
+out
+tmp
+temp
+*.log
+*.lock
+.DS_Store
+.env
+.env.local
+.env.production
