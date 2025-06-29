@@ -18,19 +18,104 @@ const FoodScanner: React.FC<FoodScannerProps> = ({ onScanComplete, className = '
   const [saving, setSaving] = useState(false);
   const [results, setResults] = useState<any>(null);
   const [error, setError] = useState<string>('');
+  const [optimizationProgress, setOptimizationProgress] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = useCallback((file: File) => {
+  // Function to optimize image before analysis
+  const optimizeImage = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      setOptimizationProgress('Loading image...');
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          setOptimizationProgress('Resizing image...');
+          
+          // Create a canvas to resize the image
+          const canvas = document.createElement('canvas');
+          
+          // Calculate new dimensions (max 1024px on longest side)
+          const MAX_SIZE = 1024;
+          let width = img.width;
+          let height = img.height;
+          
+          if (width > height && width > MAX_SIZE) {
+            height = Math.round((height * MAX_SIZE) / width);
+            width = MAX_SIZE;
+          } else if (height > MAX_SIZE) {
+            width = Math.round((width * MAX_SIZE) / height);
+            height = MAX_SIZE;
+          }
+          
+          // Set canvas dimensions and draw resized image
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          
+          if (!ctx) {
+            reject(new Error('Could not get canvas context'));
+            return;
+          }
+          
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          setOptimizationProgress('Compressing image...');
+          
+          // Convert to JPEG with reduced quality
+          const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          
+          // Calculate size reduction
+          const originalSize = file.size;
+          const base64Data = optimizedDataUrl.split(',')[1];
+          const optimizedSize = Math.round((base64Data.length * 3) / 4);
+          const reductionPercent = Math.round(((originalSize - optimizedSize) / originalSize) * 100);
+          
+          console.log(`Image optimized: ${originalSize} bytes → ${optimizedSize} bytes (${reductionPercent}% reduction)`);
+          
+          setOptimizationProgress(null);
+          resolve(optimizedDataUrl);
+        };
+        
+        img.onerror = () => {
+          setOptimizationProgress(null);
+          reject(new Error('Failed to load image'));
+        };
+        
+        img.src = e.target?.result as string;
+      };
+      
+      reader.onerror = () => {
+        setOptimizationProgress(null);
+        reject(new Error('Failed to read file'));
+      };
+      
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileSelect = useCallback(async (file: File) => {
     setImage(file);
     setError('');
     setResults(null);
 
-    // Create preview URL
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    try {
+      // Optimize the image before setting preview
+      const optimizedImageUrl = await optimizeImage(file);
+      setImagePreview(optimizedImageUrl);
+    } catch (err: any) {
+      console.error('Error optimizing image:', err);
+      
+      // Fallback to standard preview if optimization fails
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+      
+      // Show a warning but don't block the user
+      setError('Image optimization failed. Analysis may take longer than usual.');
+    }
   }, []);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -191,6 +276,14 @@ const FoodScanner: React.FC<FoodScannerProps> = ({ onScanComplete, className = '
                     Supported formats: JPG, PNG, WebP (max 10MB)
                   </p>
                 </div>
+              </div>
+            )}
+            
+            {/* Optimization progress indicator */}
+            {optimizationProgress && (
+              <div className="mt-3 text-sm text-primary-600">
+                <Loader2 className="h-4 w-4 inline mr-2 animate-spin" />
+                {optimizationProgress}
               </div>
             )}
           </div>

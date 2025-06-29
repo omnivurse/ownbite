@@ -24,6 +24,8 @@ export const scanService = {
         throw new Error('Not authenticated');
       }
 
+      console.log(`Sending image for analysis. Data URL length: ${imageDataUrl.length} characters`);
+      
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-image`, {
         method: 'POST',
         headers: {
