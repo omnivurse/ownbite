@@ -72,16 +72,22 @@ serve(async (req) => {
     // Remove the data URL prefix to get just the base64 data
     const base64Data = imageDataUrl.split(',')[1];
 
+    // Log the start time for performance tracking
+    const startTime = Date.now();
+    console.log("Starting food analysis...");
+
     // Use Gemini Vision directly for food detection
     try {
+      // Optimized prompt - removed specific number constraints for benefits/risks
+      // and simplified the request to focus on core nutritional data
       const prompt = `
         Analyze this food image and identify all visible food items.
         For each food item, provide:
         1. The name of the food
         2. Estimated calories
         3. Estimated macronutrients (protein, carbs, fat in grams)
-        4. 2-3 health benefits
-        5. 1-2 potential health concerns (if any)
+        4. Health benefits (if any)
+        5. Potential health concerns (if any)
 
         Return the results in this exact JSON format:
         {
@@ -93,7 +99,7 @@ serve(async (req) => {
               "carbs": number,
               "fat": number,
               "healthBenefits": ["benefit 1", "benefit 2"],
-              "healthRisks": ["risk 1", "risk 2"]
+              "healthRisks": ["risk 1"]
             }
           ]
         }
@@ -109,9 +115,12 @@ serve(async (req) => {
         }
       };
 
+      console.log("Sending request to Gemini...");
       const result = await model.generateContent([prompt, imagePart]);
       const response = await result.response;
       const responseText = response.text();
+      
+      console.log(`Gemini response received in ${Date.now() - startTime}ms`);
       
       // Parse the JSON response
       let parsedResponse;
@@ -145,6 +154,9 @@ serve(async (req) => {
         ...totals,
       };
 
+      console.log(`Analysis completed in ${Date.now() - startTime}ms`);
+      console.log(`Found ${foodItems.length} food items`);
+
       return new Response(
         JSON.stringify(finalResult),
         { 
@@ -156,6 +168,7 @@ serve(async (req) => {
       );
     } catch (geminiError) {
       console.error('Gemini Vision error:', geminiError);
+      console.log(`Analysis failed after ${Date.now() - startTime}ms`);
       
       // Fallback to a simpler approach if Gemini fails
       const fallbackResult: AnalyzeImageResult = {
