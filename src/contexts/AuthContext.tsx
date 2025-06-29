@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { getCacheItem, setCacheItem, clearUserCache, CACHE_KEYS, CACHE_EXPIRY } from '../lib/cache';
+import { toast } from 'react-toastify';
 
 interface UserProfile {
   id: string;
@@ -51,7 +52,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         setLoading(true);
         
-        // Try to get from Supabase directly, skip cache for initial load
+        // Try to get from cache first
+        const cachedUser = await getCacheItem<User>(CACHE_KEYS.USER);
+        const cachedProfile = await getCacheItem<UserProfile>(CACHE_KEYS.PROFILE);
+        
+        if (cachedUser && cachedProfile && mounted) {
+          console.log('Using cached user and profile');
+          setUser(cachedUser);
+          setProfile(cachedProfile);
+          setLoading(false);
+          setAuthInitialized(true);
+          
+          // Verify the session in background
+          verifySession(cachedUser);
+          return;
+        }
+        
+        // Get from Supabase if not in cache
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -122,11 +139,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  // Verify the session is still valid
+  const verifySession = async (cachedUser: User) => {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error || !session) {
+        console.warn('Cached session is invalid, clearing cache');
+        await clearUserCache();
+        setUser(null);
+        setProfile(null);
+        return;
+      }
+      
+      // Update user if needed
+      if (session.user.id !== cachedUser.id) {
+        console.log('User changed, updating from session');
+        setUser(session.user);
+        await setCacheItem(CACHE_KEYS.USER, session.user, CACHE_EXPIRY.USER);
+        await loadUserProfile(session.user.id);
+      }
+    } catch (error) {
+      console.error('Error verifying session:', error);
+    }
+  };
+
   const loadUserProfile = async (userId: string) => {
     try {
       console.log(`Loading profile for user: ${userId}`);
       
-      // Skip cache for profile loading to ensure fresh data
+      // Try to get from cache first
+      const cachedProfile = await getCacheItem<UserProfile>(CACHE_KEYS.PROFILE);
+      if (cachedProfile && cachedProfile.user_id === userId) {
+        console.log('Using cached profile');
+        setProfile(cachedProfile);
+        setLoading(false);
+        setAuthInitialized(true);
+        return;
+      }
+      
+      // Get from Supabase if not in cache
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -309,8 +361,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('Sign out successful');
       setLoading(false);
       
-      // Force reload the page to clear any in-memory state
-      window.location.href = '/login';
+      // Show success toast
+      toast.success('Signed out successfully');
     } catch (error) {
       console.error('Error in signOut function:', error);
       setLoading(false);

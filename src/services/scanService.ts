@@ -26,11 +26,15 @@ export const scanService = {
 
       console.log(`Sending image for analysis. Data URL length: ${imageDataUrl.length} characters`);
       
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-image`, {
+      // Add a timestamp to prevent caching
+      const timestamp = Date.now();
+      
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-image?t=${timestamp}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
         },
         body: JSON.stringify({ imageDataUrl }),
       });

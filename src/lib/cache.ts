@@ -5,7 +5,7 @@ localforage.config({
   name: 'ownbite',
   storeName: 'ownbite_cache',
   description: 'Cache for OwnBite app',
-  version: 1.5 // Increment version to force cache reset
+  version: 1.6 // Increment version to force cache reset
 });
 
 // Cache keys
@@ -119,6 +119,8 @@ export async function clearUserCache(): Promise<void> {
     localStorage.removeItem('pendingReferralCode');
     localStorage.removeItem('referralSource');
     localStorage.removeItem('processedReferrals');
+    localStorage.removeItem('social_auth_state');
+    localStorage.removeItem('social_auth_provider');
     
     // Clear session storage as well
     sessionStorage.clear();

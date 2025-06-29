@@ -1,3 +1,79 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Optimize font rendering */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Improve scrolling performance */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent content jumping when scrollbar appears */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* Optimize image rendering */
+img {
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* Improve tap target size on mobile */
+button, a {
+  touch-action: manipulation;
+}
+
+/* Add loading state for images */
+.img-loading {
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.img-loaded {
+  opacity: 1;
+}
+
+/* Prevent text size adjustment on orientation change */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Improve performance for fixed elements */
+.fixed {
+  will-change: transform;
+}
+
+/* Optimize animations */
+@layer utilities {
+  .animation-reduce {
+    @media (prefers-reduced-motion: reduce) {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+}
+
+/* Optimize mobile input fields */
+input, textarea, select {
+  font-size: 16px; /* Prevents iOS zoom on focus */
+}
+
+/* Add loading skeleton animation */
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
