@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, Scan, Loader2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Scan, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import Button from '../ui/Button';
 import Card, { CardBody } from '../ui/Card';
@@ -19,6 +19,7 @@ const LoginForm: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [clearingCache, setClearingCache] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
 
   const { signIn, signUp, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -27,6 +28,7 @@ const LoginForm: React.FC = () => {
   // Reset error when switching modes or changing inputs
   useEffect(() => {
     setError(null);
+    setValidationErrors({});
   }, [isSignUp, email, password, fullName]);
 
   // Clear cache on component mount
@@ -57,9 +59,37 @@ const LoginForm: React.FC = () => {
     }
   }, [location]);
 
+  const validateForm = (): boolean => {
+    const errors: {[key: string]: string} = {};
+
+    // Email validation
+    if (!email) {
+      errors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+
+    // Password validation
+    if (!password) {
+      errors.password = 'Password is required';
+    } else if (password.length < 6) {
+      errors.password = 'Password must be at least 6 characters long';
+    }
+
+    // Full name validation for signup
+    if (isSignUp && !fullName.trim()) {
+      errors.fullName = 'Full name is required';
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const getErrorMessage = (error: any): string => {
+    console.log('Full error object:', error);
+    
     if (error?.message?.includes('Invalid login credentials')) {
-      return 'Invalid email or password. Please check your credentials and try again.';
+      return 'The email or password you entered is incorrect. Please check your credentials and try again.';
     }
     if (error?.message?.includes('Email not confirmed')) {
       return 'Please check your email and click the confirmation link before signing in.';
@@ -76,17 +106,31 @@ const LoginForm: React.FC = () => {
     if (error?.message?.includes('Signup not allowed')) {
       return 'Account registration is currently disabled. Please contact support.';
     }
+    if (error?.message?.includes('Too many requests')) {
+      return 'Too many login attempts. Please wait a moment before trying again.';
+    }
+    if (error?.message?.includes('Network error') || error?.message?.includes('fetch')) {
+      return 'Network connection error. Please check your internet connection and try again.';
+    }
+    
     return error?.message || 'An unexpected error occurred. Please try again.';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate form before submission
+    if (!validateForm()) {
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     setSuccess(null);
 
     try {
       if (isSignUp) {
+        console.log('Attempting signup for:', email);
         await signUp(email, password, fullName);
         setSuccess('Account created successfully! You can now sign in.');
         // Clear form after successful signup
@@ -99,6 +143,7 @@ const LoginForm: React.FC = () => {
           setSuccess(null);
         }, 3000);
       } else {
+        console.log('Attempting signin for:', email);
         setLoginAttempts(prev => prev + 1);
         await signIn(email, password);
         
@@ -129,7 +174,7 @@ const LoginForm: React.FC = () => {
       
       // If multiple login attempts fail, suggest clearing cache
       if (loginAttempts >= 2 && !isSignUp) {
-        setError((prev) => `${prev || ''} You may try clearing your browser cache or reloading the page.`);
+        setError((prev) => `${prev || ''} If this problem persists, try clearing your browser cache.`);
       }
     } finally {
       setIsLoading(false);
@@ -140,10 +185,12 @@ const LoginForm: React.FC = () => {
     setIsSignUp(!isSignUp);
     setError(null);
     setSuccess(null);
+    setValidationErrors({});
     // Clear form when switching modes
     setEmail('');
     setPassword('');
     setFullName('');
+    setLoginAttempts(0);
   };
 
   const handleClearCache = async () => {
@@ -152,6 +199,7 @@ const LoginForm: React.FC = () => {
       await forceClearAllStorage();
       toast.success('Cache cleared successfully. Please try logging in again.');
       setSuccess('Cache cleared successfully. Please try logging in again.');
+      setLoginAttempts(0);
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       console.error('Error clearing cache:', err);
@@ -159,6 +207,17 @@ const LoginForm: React.FC = () => {
     } finally {
       setClearingCache(false);
     }
+  };
+
+  const getInputClassName = (fieldName: string) => {
+    const baseClass = "w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2";
+    const hasError = validationErrors[fieldName];
+    
+    if (hasError) {
+      return `${baseClass} border-red-300 focus:ring-red-500 focus:border-red-500`;
+    }
+    
+    return `${baseClass} border-neutral-300 focus:ring-primary-500 focus:border-primary-500`;
   };
 
   return (
@@ -178,7 +237,7 @@ const LoginForm: React.FC = () => {
 
         <Card>
           <CardBody>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6" noValidate>
               {isSignUp && (
                 <div>
                   <label htmlFor="fullName" className="block text-sm font-medium text-neutral-700 mb-1">
@@ -189,10 +248,16 @@ const LoginForm: React.FC = () => {
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    className="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className={getInputClassName('fullName')}
                     placeholder="Enter your full name"
                     required={isSignUp}
                   />
+                  {validationErrors.fullName && (
+                    <div className="mt-1 flex items-center text-sm text-red-600">
+                      <AlertCircle className="h-4 w-4 mr-1" />
+                      {validationErrors.fullName}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -208,12 +273,19 @@ const LoginForm: React.FC = () => {
                     id="email"
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    onChange={(e) => setEmail(e.target.value.trim())}
+                    className={`${getInputClassName('email')} pl-10`}
                     placeholder="Enter your email"
                     required
+                    autoComplete="email"
                   />
                 </div>
+                {validationErrors.email && (
+                  <div className="mt-1 flex items-center text-sm text-red-600">
+                    <AlertCircle className="h-4 w-4 mr-1" />
+                    {validationErrors.email}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -239,10 +311,11 @@ const LoginForm: React.FC = () => {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className={`${getInputClassName('password')} pl-10 pr-10`}
                     placeholder="Enter your password"
                     required
                     minLength={6}
+                    autoComplete={isSignUp ? "new-password" : "current-password"}
                   />
                   <button
                     type="button"
@@ -256,23 +329,34 @@ const LoginForm: React.FC = () => {
                     )}
                   </button>
                 </div>
+                {validationErrors.password && (
+                  <div className="mt-1 flex items-center text-sm text-red-600">
+                    <AlertCircle className="h-4 w-4 mr-1" />
+                    {validationErrors.password}
+                  </div>
+                )}
               </div>
 
               {error && (
                 <div className="p-3 rounded-md text-sm bg-red-50 text-red-700 border border-red-200">
-                  {error}
-                  {loginAttempts >= 2 && !isSignUp && (
-                    <div className="mt-2">
-                      <button
-                        type="button"
-                        onClick={handleClearCache}
-                        className="text-red-600 underline hover:text-red-800"
-                        disabled={clearingCache}
-                      >
-                        {clearingCache ? 'Clearing cache...' : 'Clear browser cache'}
-                      </button>
+                  <div className="flex items-start">
+                    <AlertCircle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
+                    <div>
+                      {error}
+                      {loginAttempts >= 2 && !isSignUp && (
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            onClick={handleClearCache}
+                            className="text-red-600 underline hover:text-red-800"
+                            disabled={clearingCache}
+                          >
+                            {clearingCache ? 'Clearing cache...' : 'Clear browser cache'}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
 
@@ -326,6 +410,7 @@ const LoginForm: React.FC = () => {
                 type="button"
                 onClick={handleClearCache}
                 className="text-neutral-500 hover:text-neutral-700 text-xs"
+                disabled={clearingCache}
               >
                 {clearingCache ? 'Clearing cache...' : 'Clear browser cache'}
               </button>
