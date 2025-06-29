@@ -6,6 +6,7 @@ import Button from '../ui/Button';
 import Card, { CardBody } from '../ui/Card';
 import { clearCache, forceClearAllStorage } from '../../lib/cache';
 import { affiliateService } from '../../services/affiliateService';
+import { toast } from 'react-toastify';
 
 const LoginForm: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -149,6 +150,7 @@ const LoginForm: React.FC = () => {
     setClearingCache(true);
     try {
       await forceClearAllStorage();
+      toast.success('Cache cleared successfully. Please try logging in again.');
       setSuccess('Cache cleared successfully. Please try logging in again.');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
@@ -317,6 +319,16 @@ const LoginForm: React.FC = () => {
               >
                 Or continue with our guided setup
               </Link>
+            </div>
+            
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={handleClearCache}
+                className="text-neutral-500 hover:text-neutral-700 text-xs"
+              >
+                {clearingCache ? 'Clearing cache...' : 'Clear browser cache'}
+              </button>
             </div>
           </CardBody>
         </Card>

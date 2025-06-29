@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import Card, { CardBody } from '../ui/Card';
 import Button from '../ui/Button';
+import { clearUserCache, forceClearAllStorage } from '../../lib/cache';
 
 interface SettingsPanelProps {
   userId: string;
@@ -15,9 +16,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ userId }) => {
   const { signOut, profile } = useAuth();
   const { hasActiveSubscription, hasPremiumAccess, productName, nextBillingDate, refreshSubscription } = useSubscription();
   const navigate = useNavigate();
+  
   const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [clearingCache, setClearingCache] = useState(false);
 
   useEffect(() => {
     // Force refresh subscription status when component mounts
@@ -28,6 +32,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ userId }) => {
     try {
       setLoading(true);
       console.log('Signing out from SettingsPanel');
+      
+      // Clear cache before signing out
+      await clearUserCache();
+      
       await signOut();
       navigate('/login');
     } catch (err: any) {
@@ -84,6 +92,24 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ userId }) => {
     }
   };
 
+  const handleClearCache = async () => {
+    try {
+      setClearingCache(true);
+      await forceClearAllStorage();
+      setSuccess('Cache cleared successfully. You will be redirected to login page.');
+      
+      // Wait a moment before redirecting
+      setTimeout(() => {
+        navigate('/login');
+      }, 2000);
+    } catch (err: any) {
+      console.error('Error clearing cache:', err);
+      setError(err.message || 'Failed to clear cache');
+    } finally {
+      setClearingCache(false);
+    }
+  };
+
   return (
     <Card>
       <CardBody>
@@ -97,6 +123,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ userId }) => {
         {error && (
           <div className="p-3 mb-4 bg-red-50 text-red-700 rounded-lg text-sm">
             {error}
+          </div>
+        )}
+        
+        {success && (
+          <div className="p-3 mb-4 bg-green-50 text-green-700 rounded-lg text-sm">
+            {success}
           </div>
         )}
         
@@ -212,6 +244,24 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ userId }) => {
                   leftIcon={exportLoading ? <span className="animate-spin">↻</span> : undefined}
                 >
                   {exportLoading ? 'Exporting...' : 'Export'}
+                </Button>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-neutral-700">Clear Cache</p>
+                  <p className="text-xs text-neutral-500">
+                    Clear application cache and storage
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClearCache}
+                  disabled={clearingCache}
+                  leftIcon={clearingCache ? <span className="animate-spin">↻</span> : undefined}
+                >
+                  {clearingCache ? 'Clearing...' : 'Clear Cache'}
                 </Button>
               </div>
               

@@ -13,12 +13,14 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import Button from '../ui/Button';
+import { clearUserCache } from '../../lib/cache';
 
 /**
  * Main application header with navigation
  */
 const Header: React.FC = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, signOut } = useAuth();
@@ -34,10 +36,16 @@ const Header: React.FC = () => {
 
   const handleSignOut = async () => {
     try {
+      setIsLoggingOut(true);
+      
+      // Clear cache before signing out
+      await clearUserCache();
+      
       await signOut();
       navigate('/login');
     } catch (error) {
       console.error('Error signing out from Header:', error);
+      setIsLoggingOut(false);
     }
   };
 
@@ -72,6 +80,7 @@ const Header: React.FC = () => {
                 <button
                   onClick={toggleDropdown}
                   className="flex items-center space-x-3 p-2 rounded-lg hover:bg-neutral-100 transition-colors"
+                  disabled={isLoggingOut}
                 >
                   {/* Avatar */}
                   <div className="h-8 w-8 bg-primary-600 rounded-full flex items-center justify-center">
@@ -185,10 +194,11 @@ const Header: React.FC = () => {
                       {/* Sign Out */}
                       <button
                         onClick={handleSignOut}
-                        className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                        disabled={isLoggingOut}
+                        className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <LogOut className="h-4 w-4 mr-3" />
-                        Sign Out
+                        {isLoggingOut ? 'Signing Out...' : 'Sign Out'}
                       </button>
                     </div>
                   </>

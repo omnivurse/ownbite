@@ -295,9 +295,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clear cache before signing out
       await clearUserCache();
       
-      const { error } = await supabase.auth.signOut({
-        scope: 'local' // Only sign out from this device
-      });
+      const { error } = await supabase.auth.signOut();
       
       if (error) {
         console.error('Sign out error:', error);

@@ -5,7 +5,7 @@ localforage.config({
   name: 'ownbite',
   storeName: 'ownbite_cache',
   description: 'Cache for OwnBite app',
-  version: 1.4 // Increment version to force cache reset
+  version: 1.5 // Increment version to force cache reset
 });
 
 // Cache keys
@@ -112,6 +112,18 @@ export async function clearUserCache(): Promise<void> {
       localforage.removeItem(CACHE_KEYS.KPI_DASHBOARD),
     ]);
     console.log('User cache cleared successfully');
+    
+    // Also clear localStorage items that might be related to auth
+    localStorage.removeItem('supabase.auth.token');
+    localStorage.removeItem('ownbite-auth-storage');
+    localStorage.removeItem('pendingReferralCode');
+    localStorage.removeItem('referralSource');
+    localStorage.removeItem('processedReferrals');
+    
+    // Clear session storage as well
+    sessionStorage.clear();
+    
+    console.log('Local storage auth items cleared');
   } catch (error) {
     console.error('Error clearing user cache:', error);
   }
