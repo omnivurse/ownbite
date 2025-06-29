@@ -331,16 +331,12 @@ export const bloodworkService = {
         return () => clearTimeout(timeoutId);
       });
       
-      // Add a timestamp to prevent caching
-      const timestamp = Date.now();
-      
       // Race between the actual request and the timeout
       const bloodworkPromise = supabase
         .from('bloodwork_results')
         .select('*')
         .eq('user_id', user.id)
-        .order('uploaded_at', { ascending: false })
-        .eq('_t', timestamp); // Add timestamp parameter to prevent caching
+        .order('uploaded_at', { ascending: false });
       
       const result = await Promise.race([
         bloodworkPromise,
@@ -382,16 +378,12 @@ export const bloodworkService = {
         return () => clearTimeout(timeoutId);
       });
       
-      // Add a timestamp to prevent caching
-      const timestamp = Date.now();
-      
       // Race between the actual request and the timeout
       const statusPromise = supabase
         .from('user_nutrient_status')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .eq('_t', timestamp); // Add timestamp parameter to prevent caching
+        .order('created_at', { ascending: false });
       
       const result = await Promise.race([
         statusPromise,
@@ -433,14 +425,10 @@ export const bloodworkService = {
         return () => clearTimeout(timeoutId);
       });
       
-      // Add a timestamp to prevent caching
-      const timestamp = Date.now();
-      
       // Race between the actual request and the timeout
       const recommendationsPromise = supabase
         .rpc('get_nutrient_recommendations', {
-          p_user_id: user.id,
-          _t: timestamp // Add timestamp parameter to prevent caching
+          p_user_id: user.id
         });
       
       const result = await Promise.race([

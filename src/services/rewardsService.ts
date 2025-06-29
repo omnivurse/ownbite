@@ -2,115 +2,124 @@ import { supabase } from '../lib/supabase';
 
 export interface UserRewards {
   id: string;
+  user_id: string;
   points: number;
   lifetime_points: number;
-  tier: 'Bronze' | 'Silver' | 'Gold' | 'Platinum';
-  badges: Badge[];
+  tier: string;
+  badges: any[];
   last_updated: string;
   created_at: string;
 }
 
-export interface Badge {
-  type: string;
-  name: string;
-  description: string;
-  earned_at: string;
-}
-
 export interface RewardEvent {
   id: string;
+  user_id: string;
   event_type: string;
   points_awarded: number;
   created_at: string;
   context: any;
 }
 
-export interface RewardsData {
-  user_rewards: UserRewards;
-  recent_events: RewardEvent[];
-  next_tier: string;
-  points_to_next_tier: number;
-}
-
-export interface LeaderboardEntry {
-  user_id: string;
-  full_name: string;
-  avatar_url: string | null;
-  points: number;
-  tier: string;
-}
-
 export interface RewardItem {
   id: string;
   name: string;
-  description: string;
-  image_url: string;
+  description?: string;
+  image_url?: string;
   points_cost: number;
   required_tier: string;
   category: string;
   is_digital: boolean;
-  stock_quantity: number | null;
-  can_afford: boolean;
+  is_active: boolean;
+  stock_quantity?: number;
   created_at: string;
+  updated_at: string;
 }
 
 export interface RewardRedemption {
   id: string;
-  reward_name: string;
-  reward_description: string;
-  reward_image_url: string;
+  user_id: string;
+  reward_item_id: string;
   points_spent: number;
   status: 'pending' | 'fulfilled' | 'cancelled';
-  redemption_code: string | null;
-  is_digital: boolean;
-  created_at: string;
-  fulfilled_at: string | null;
-}
-
-export interface RedemptionResult {
-  success: boolean;
-  redemption_id?: string;
-  reward_name?: string;
-  points_spent?: number;
   redemption_code?: string;
-  is_digital?: boolean;
-  status?: string;
-  message: string;
+  delivery_details: any;
+  created_at: string;
+  fulfilled_at?: string;
 }
 
 export const rewardsService = {
   /**
-   * Get user rewards data
+   * Get user's current rewards data
    */
-  async getUserRewards(): Promise<RewardsData> {
+  async getUserRewards(): Promise<UserRewards | null> {
     try {
-      const { data, error } = await supabase.rpc('get_user_rewards');
-      
-      if (error) throw error;
-      return data;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      // First check if user rewards record exists
+      const { data: existingRewards, error: fetchError } = await supabase
+        .from('user_rewards')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError;
+      }
+
+      // If no rewards record exists, create one
+      if (!existingRewards) {
+        const { data: newRewards, error: createError } = await supabase
+          .from('user_rewards')
+          .insert([{
+            user_id: user.id,
+            points: 0,
+            lifetime_points: 0,
+            tier: 'Bronze',
+            badges: []
+          }])
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        return newRewards;
+      }
+
+      return existingRewards;
     } catch (error) {
       console.error('Error fetching user rewards:', error);
-      throw error;
+      return null;
     }
   },
 
   /**
-   * Award points to the user
+   * Award points to user for completing an action
    */
-  async awardPoints(
-    eventType: string,
-    points: number,
-    context: any = {}
-  ): Promise<{ success: boolean; points_awarded: number; new_points: number; tier: string; tier_changed: boolean }> {
+  async awardPoints(eventType: string, points: number, context: any = {}): Promise<void> {
     try {
-      const { data, error } = await supabase.rpc('award_points', {
-        p_event_type: eventType,
-        p_points: points,
-        p_context: context
-      });
-      
-      if (error) throw error;
-      return data;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      // Record the reward event
+      const { error: eventError } = await supabase
+        .from('reward_events')
+        .insert([{
+          user_id: user.id,
+          event_type: eventType,
+          points_awarded: points,
+          context
+        }]);
+
+      if (eventError) throw eventError;
+
+      // Update user's total points
+      const { error: updateError } = await supabase
+        .rpc('update_user_points', {
+          p_user_id: user.id,
+          p_points_to_add: points
+        });
+
+      if (updateError) throw updateError;
     } catch (error) {
       console.error('Error awarding points:', error);
       throw error;
@@ -118,93 +127,96 @@ export const rewardsService = {
   },
 
   /**
-   * Get rewards leaderboard
+   * Get user's reward history
    */
-  async getLeaderboard(limit: number = 10): Promise<LeaderboardEntry[]> {
+  async getRewardHistory(): Promise<RewardEvent[]> {
     try {
-      const { data, error } = await supabase.rpc('get_rewards_leaderboard', {
-        p_limit: limit
-      });
-      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data, error } = await supabase
+        .from('reward_events')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
       if (error) throw error;
-      return data;
+      return data || [];
     } catch (error) {
-      console.error('Error fetching leaderboard:', error);
-      throw error;
+      console.error('Error fetching reward history:', error);
+      return [];
     }
   },
 
   /**
-   * Get event type display name
+   * Get available reward items
    */
-  getEventTypeDisplay(eventType: string): string {
-    const eventTypes: Record<string, string> = {
-      'log_meal': 'Logged a meal',
-      'upload_recipe': 'Uploaded a recipe',
-      'share_progress': 'Shared progress',
-      'streak': 'Maintained streak',
-      'referral_link': 'Shared referral link',
-      'referral_signup': 'Referred a new user',
-      'hydration_goal': 'Hit hydration goal',
-      'complete_profile': 'Completed profile',
-      'bloodwork_upload': 'Uploaded bloodwork',
-      'meal_plan': 'Created meal plan',
-      'redeem_reward': 'Redeemed reward'
-    };
-    
-    return eventTypes[eventType] || eventType;
-  },
-
-  /**
-   * Manually trigger a reward event
-   */
-  async triggerRewardEvent(
-    eventType: string,
-    points: number,
-    context: any = {}
-  ): Promise<void> {
+  async getRewardItems(): Promise<RewardItem[]> {
     try {
-      await this.awardPoints(eventType, points, context);
+      const { data, error } = await supabase
+        .from('reward_items')
+        .select('*')
+        .eq('is_active', true)
+        .order('points_cost', { ascending: true });
+
+      if (error) throw error;
+      return data || [];
     } catch (error) {
-      console.error(`Error triggering ${eventType} reward:`, error);
-      throw error;
+      console.error('Error fetching reward items:', error);
+      return [];
     }
   },
 
   /**
-   * Get available rewards for the user
+   * Redeem a reward item
    */
-  async getAvailableRewards(): Promise<{
-    user_tier: string;
-    user_points: number;
-    rewards: RewardItem[];
-  }> {
+  async redeemReward(rewardItemId: string, deliveryDetails: any = {}): Promise<RewardRedemption> {
     try {
-      const { data, error } = await supabase.rpc('get_available_rewards');
-      
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error fetching available rewards:', error);
-      throw error;
-    }
-  },
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
 
-  /**
-   * Redeem a reward
-   */
-  async redeemReward(
-    rewardItemId: string,
-    deliveryDetails: any = {}
-  ): Promise<RedemptionResult> {
-    try {
-      const { data, error } = await supabase.rpc('redeem_reward', {
-        p_reward_item_id: rewardItemId,
-        p_delivery_details: deliveryDetails
-      });
-      
-      if (error) throw error;
-      return data;
+      // Get the reward item details
+      const { data: rewardItem, error: itemError } = await supabase
+        .from('reward_items')
+        .select('*')
+        .eq('id', rewardItemId)
+        .single();
+
+      if (itemError) throw itemError;
+      if (!rewardItem) throw new Error('Reward item not found');
+
+      // Check if user has enough points
+      const userRewards = await this.getUserRewards();
+      if (!userRewards || userRewards.points < rewardItem.points_cost) {
+        throw new Error('Insufficient points');
+      }
+
+      // Create redemption record
+      const { data: redemption, error: redemptionError } = await supabase
+        .from('reward_redemptions')
+        .insert([{
+          user_id: user.id,
+          reward_item_id: rewardItemId,
+          points_spent: rewardItem.points_cost,
+          delivery_details,
+          status: 'pending'
+        }])
+        .select()
+        .single();
+
+      if (redemptionError) throw redemptionError;
+
+      // Deduct points from user
+      const { error: deductError } = await supabase
+        .rpc('update_user_points', {
+          p_user_id: user.id,
+          p_points_to_add: -rewardItem.points_cost
+        });
+
+      if (deductError) throw deductError;
+
+      return redemption;
     } catch (error) {
       console.error('Error redeeming reward:', error);
       throw error;
@@ -212,36 +224,69 @@ export const rewardsService = {
   },
 
   /**
-   * Get user redemption history
+   * Get user's redemption history
    */
-  async getUserRedemptions(): Promise<{
-    redemptions: RewardRedemption[];
-  }> {
+  async getRedemptionHistory(): Promise<RewardRedemption[]> {
     try {
-      const { data, error } = await supabase.rpc('get_user_redemptions');
-      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data, error } = await supabase
+        .from('reward_redemptions')
+        .select(`
+          *,
+          reward_items (
+            name,
+            description,
+            image_url
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
       if (error) throw error;
-      return data;
+      return data || [];
     } catch (error) {
-      console.error('Error fetching user redemptions:', error);
-      throw error;
+      console.error('Error fetching redemption history:', error);
+      return [];
     }
   },
 
   /**
-   * Get category display name
+   * Get leaderboard data
    */
-  getCategoryDisplay(category: string): string {
-    const categories: Record<string, string> = {
-      'Content': 'Digital Content',
-      'Service': 'Services',
-      'Subscription': 'Subscriptions',
-      'Event': 'Events',
-      'Physical': 'Physical Items',
-      'Customization': 'Customization',
-      'Feature': 'Special Features'
-    };
-    
-    return categories[category] || category;
+  async getLeaderboard(limit: number = 10): Promise<Array<{
+    user_id: string;
+    points: number;
+    tier: string;
+    rank: number;
+  }>> {
+    try {
+      const { data, error } = await supabase
+        .from('user_rewards')
+        .select(`
+          user_id,
+          points,
+          tier,
+          profiles!inner (
+            full_name
+          )
+        `)
+        .order('points', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      
+      return (data || []).map((item, index) => ({
+        user_id: item.user_id,
+        points: item.points,
+        tier: item.tier,
+        rank: index + 1,
+        full_name: (item as any).profiles?.full_name || 'Anonymous'
+      }));
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error);
+      return [];
+    }
   }
 };
