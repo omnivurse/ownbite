@@ -1,14 +1,21 @@
 import { supabase } from '../lib/supabase';
 import { SocialAccount, SocialShare, SocialShareRequest, SocialConnectRequest } from '../types/social';
+import { toast } from 'react-toastify';
 
 // Timeout for social operations in milliseconds
-const SOCIAL_TIMEOUT = 10000; // 10 seconds
+const SOCIAL_TIMEOUT = 20000; // Increased from 10s to 20s
+
+// Maximum number of retries for operations
+const MAX_RETRIES = 3;
+
+// Retry delay in milliseconds (with exponential backoff)
+const getRetryDelay = (attempt: number) => Math.min(1000 * Math.pow(2, attempt), 10000);
 
 export const socialService = {
   /**
    * Get all connected social accounts for the current user
    */
-  async getConnectedAccounts(): Promise<SocialAccount[]> {
+  async getConnectedAccounts(retryCount = 0): Promise<SocialAccount[]> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -48,6 +55,24 @@ export const socialService = {
     } catch (error) {
       console.error('Error fetching connected accounts:', error);
       
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES && error instanceof Error && error.message.includes('timed out')) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying get connected accounts (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        return new Promise(resolve => {
+          setTimeout(async () => {
+            try {
+              const result = await this.getConnectedAccounts(retryCount + 1);
+              resolve(result);
+            } catch (retryError) {
+              // Return empty array instead of throwing to prevent UI breakage
+              resolve([]);
+            }
+          }, delay);
+        });
+      }
+      
       // Return empty array instead of throwing to prevent UI breakage
       return [];
     }
@@ -56,7 +81,7 @@ export const socialService = {
   /**
    * Connect a social media account
    */
-  async connectAccount(request: SocialConnectRequest): Promise<SocialAccount> {
+  async connectAccount(request: SocialConnectRequest, retryCount = 0): Promise<SocialAccount> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -111,6 +136,26 @@ export const socialService = {
       return result.account;
     } catch (error) {
       console.error('Error connecting social account:', error);
+      
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES && error instanceof Error && error.message.includes('timed out')) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying connect account (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        toast.info('Connection taking longer than expected. Retrying...');
+        
+        return new Promise((resolve, reject) => {
+          setTimeout(async () => {
+            try {
+              const result = await this.connectAccount(request, retryCount + 1);
+              resolve(result);
+            } catch (retryError) {
+              reject(retryError);
+            }
+          }, delay);
+        });
+      }
+      
       throw error;
     }
   },
@@ -118,7 +163,7 @@ export const socialService = {
   /**
    * Disconnect a social media account
    */
-  async disconnectAccount(accountId: string): Promise<void> {
+  async disconnectAccount(accountId: string, retryCount = 0): Promise<void> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -155,6 +200,24 @@ export const socialService = {
       if (error) throw error;
     } catch (error) {
       console.error('Error disconnecting account:', error);
+      
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES && error instanceof Error && error.message.includes('timed out')) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying disconnect account (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        return new Promise((resolve, reject) => {
+          setTimeout(async () => {
+            try {
+              await this.disconnectAccount(accountId, retryCount + 1);
+              resolve();
+            } catch (retryError) {
+              reject(retryError);
+            }
+          }, delay);
+        });
+      }
+      
       throw error;
     }
   },
@@ -162,7 +225,7 @@ export const socialService = {
   /**
    * Share content to connected social media accounts
    */
-  async shareContent(request: SocialShareRequest): Promise<SocialShare[]> {
+  async shareContent(request: SocialShareRequest, retryCount = 0): Promise<SocialShare[]> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -217,6 +280,26 @@ export const socialService = {
       return result.shares;
     } catch (error) {
       console.error('Error sharing content:', error);
+      
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES && error instanceof Error && error.message.includes('timed out')) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying share content (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        toast.info('Sharing taking longer than expected. Retrying...');
+        
+        return new Promise((resolve, reject) => {
+          setTimeout(async () => {
+            try {
+              const result = await this.shareContent(request, retryCount + 1);
+              resolve(result);
+            } catch (retryError) {
+              reject(retryError);
+            }
+          }, delay);
+        });
+      }
+      
       throw error;
     }
   },
@@ -224,7 +307,7 @@ export const socialService = {
   /**
    * Get share history for the current user
    */
-  async getShareHistory(): Promise<SocialShare[]> {
+  async getShareHistory(retryCount = 0): Promise<SocialShare[]> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -262,6 +345,24 @@ export const socialService = {
       return data || [];
     } catch (error) {
       console.error('Error fetching share history:', error);
+      
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES && error instanceof Error && error.message.includes('timed out')) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying get share history (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        return new Promise(resolve => {
+          setTimeout(async () => {
+            try {
+              const result = await this.getShareHistory(retryCount + 1);
+              resolve(result);
+            } catch (retryError) {
+              // Return empty array instead of throwing to prevent UI breakage
+              resolve([]);
+            }
+          }, delay);
+        });
+      }
       
       // Return empty array instead of throwing to prevent UI breakage
       return [];

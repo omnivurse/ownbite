@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { stripeProducts, getProductByPriceId } from '../stripe-config';
 import { getCacheItem, setCacheItem, CACHE_KEYS, CACHE_EXPIRY, clearCache } from '../lib/cache';
 import { supabase } from '../lib/supabase';
+import { toast } from 'react-toastify';
 
 interface SubscriptionContextType {
   products: typeof stripeProducts;
@@ -29,6 +30,12 @@ export const useSubscription = () => {
 interface SubscriptionProviderProps {
   children: ReactNode;
 }
+
+// Maximum number of retries for operations
+const MAX_RETRIES = 3;
+
+// Retry delay in milliseconds (with exponential backoff)
+const getRetryDelay = (attempt: number) => Math.min(1000 * Math.pow(2, attempt), 10000);
 
 export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ children }) => {
   const { user, profile } = useAuth();
@@ -130,6 +137,9 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
         profileStatus: profile?.subscription_status
       });
       
+      // Reset load attempts on success
+      setLoadAttempts(0);
+      
     } catch (error) {
       console.error('Error loading subscription:', error);
       
@@ -141,10 +151,17 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
       setProductName(isPremiumFromProfile ? 'Ultimate Wellbeing' : null);
       setNextBillingDate(profile?.subscription_end_date ? new Date(profile.subscription_end_date) : null);
       
-      // Retry loading if failed (up to 3 times)
-      if (loadAttempts < 3) {
+      // Retry loading if failed (up to MAX_RETRIES times)
+      if (loadAttempts < MAX_RETRIES) {
+        const delay = getRetryDelay(loadAttempts);
         setLoadAttempts(prev => prev + 1);
-        setTimeout(() => loadSubscription(), 1000); // Retry after 1 second
+        console.log(`Retrying subscription load (attempt ${loadAttempts + 1}) after ${delay}ms`);
+        
+        setTimeout(() => loadSubscription(), delay);
+      } else if (loadAttempts === MAX_RETRIES) {
+        // Show toast notification after all retries fail
+        toast.error('Failed to load subscription information. Using cached data if available.');
+        setLoadAttempts(prev => prev + 1); // Increment to prevent showing toast again
       }
     } finally {
       setIsLoading(false);

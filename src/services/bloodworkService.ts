@@ -35,13 +35,19 @@ export interface NutrientRecommendation {
 }
 
 // Timeout for bloodwork operations in milliseconds
-const BLOODWORK_TIMEOUT = 15000; // 15 seconds
+const BLOODWORK_TIMEOUT = 30000; // Increased from 15s to 30s
+
+// Maximum number of retries for operations
+const MAX_RETRIES = 3;
+
+// Retry delay in milliseconds (with exponential backoff)
+const getRetryDelay = (attempt: number) => Math.min(1000 * Math.pow(2, attempt), 10000);
 
 export const bloodworkService = {
   /**
    * Upload and analyze bloodwork file
    */
-  async uploadBloodwork(file: File, notes?: string): Promise<BloodworkResult> {
+  async uploadBloodwork(file: File, notes?: string, retryCount = 0): Promise<BloodworkResult> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -111,6 +117,24 @@ export const bloodworkService = {
       return bloodworkData;
     } catch (error) {
       console.error('Error uploading bloodwork:', error);
+      
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES && error instanceof Error && error.message.includes('timed out')) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying bloodwork upload (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        return new Promise(resolve => {
+          setTimeout(async () => {
+            try {
+              const result = await this.uploadBloodwork(file, notes, retryCount + 1);
+              resolve(result);
+            } catch (retryError) {
+              throw retryError;
+            }
+          }, delay);
+        });
+      }
+      
       throw new Error('Failed to upload bloodwork. Please try again.');
     }
   },
@@ -118,7 +142,7 @@ export const bloodworkService = {
   /**
    * Trigger the analysis of a bloodwork file
    */
-  async triggerBloodworkAnalysis(bloodworkId: string, fileUrl: string): Promise<void> {
+  async triggerBloodworkAnalysis(bloodworkId: string, fileUrl: string, retryCount = 0): Promise<void> {
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       
@@ -201,7 +225,18 @@ export const bloodworkService = {
     } catch (error) {
       console.error('Error triggering bloodwork analysis:', error);
       
-      // Mark as complete even if analysis fails
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES && error instanceof Error && error.message.includes('timed out')) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying bloodwork analysis (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        setTimeout(() => {
+          this.triggerBloodworkAnalysis(bloodworkId, fileUrl, retryCount + 1);
+        }, delay);
+        return;
+      }
+      
+      // Mark as complete even if analysis fails after all retries
       await supabase
         .from('bloodwork_results')
         .update({ analysis_complete: true })
@@ -216,12 +251,10 @@ export const bloodworkService = {
     name: string;
     value: number;
     unit: string;
-  }>): Promise<NutrientStatus[]> {
+  }>, retryCount = 0): Promise<NutrientStatus[]> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('Not authenticated');
-      }
+      if (!user) throw new Error('Not authenticated');
 
       // Set a timeout to prevent hanging
       const timeoutPromise = new Promise<null>((_, reject) => {
@@ -309,6 +342,24 @@ export const bloodworkService = {
       return results;
     } catch (error) {
       console.error('Error adding nutrient values:', error);
+      
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES && error instanceof Error && error.message.includes('timed out')) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying add nutrient values (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        return new Promise(resolve => {
+          setTimeout(async () => {
+            try {
+              const result = await this.addNutrientValues(nutrients, retryCount + 1);
+              resolve(result);
+            } catch (retryError) {
+              throw retryError;
+            }
+          }, delay);
+        });
+      }
+      
       throw new Error('Failed to add nutrient values. Please try again.');
     }
   },
@@ -316,7 +367,7 @@ export const bloodworkService = {
   /**
    * Get user's bloodwork results
    */
-  async getUserBloodwork(): Promise<BloodworkResult[]> {
+  async getUserBloodwork(retryCount = 0): Promise<BloodworkResult[]> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -355,6 +406,24 @@ export const bloodworkService = {
     } catch (error) {
       console.error('Error fetching bloodwork:', error);
       
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES && error instanceof Error && error.message.includes('timed out')) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying get bloodwork (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        return new Promise(resolve => {
+          setTimeout(async () => {
+            try {
+              const result = await this.getUserBloodwork(retryCount + 1);
+              resolve(result);
+            } catch (retryError) {
+              // Return empty array instead of throwing to prevent UI breakage
+              resolve([]);
+            }
+          }, delay);
+        });
+      }
+      
       // Return empty array instead of throwing to prevent UI breakage
       return [];
     }
@@ -363,7 +432,7 @@ export const bloodworkService = {
   /**
    * Get user's current nutrient status
    */
-  async getNutrientStatus(): Promise<NutrientStatus[]> {
+  async getNutrientStatus(retryCount = 0): Promise<NutrientStatus[]> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -381,7 +450,12 @@ export const bloodworkService = {
       // Race between the actual request and the timeout
       const statusPromise = supabase
         .from('user_nutrient_status')
-        .select('*')
+        .select(`
+          nutrient_name,
+          current_value,
+          unit,
+          status
+        `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       
@@ -402,6 +476,24 @@ export const bloodworkService = {
     } catch (error) {
       console.error('Error fetching nutrient status:', error);
       
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES && error instanceof Error && error.message.includes('timed out')) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying get nutrient status (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        return new Promise(resolve => {
+          setTimeout(async () => {
+            try {
+              const result = await this.getNutrientStatus(retryCount + 1);
+              resolve(result);
+            } catch (retryError) {
+              // Return empty array instead of throwing to prevent UI breakage
+              resolve([]);
+            }
+          }, delay);
+        });
+      }
+      
       // Return empty array instead of throwing to prevent UI breakage
       return [];
     }
@@ -410,7 +502,7 @@ export const bloodworkService = {
   /**
    * Get personalized food recommendations based on nutrient deficiencies
    */
-  async getPersonalizedRecommendations(): Promise<NutrientRecommendation[]> {
+  async getPersonalizedRecommendations(retryCount = 0): Promise<NutrientRecommendation[]> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -448,6 +540,24 @@ export const bloodworkService = {
     } catch (error) {
       console.error('Error fetching recommendations:', error);
       
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES && error instanceof Error && error.message.includes('timed out')) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying get recommendations (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        return new Promise(resolve => {
+          setTimeout(async () => {
+            try {
+              const result = await this.getPersonalizedRecommendations(retryCount + 1);
+              resolve(result);
+            } catch (retryError) {
+              // Return empty array instead of throwing to prevent UI breakage
+              resolve([]);
+            }
+          }, delay);
+        });
+      }
+      
       // Return empty array instead of throwing to prevent UI breakage
       return [];
     }
@@ -456,7 +566,7 @@ export const bloodworkService = {
   /**
    * Get nutrient deficiency alerts for dashboard
    */
-  async getDeficiencyAlerts(): Promise<Array<{
+  async getDeficiencyAlerts(retryCount = 0): Promise<Array<{
     nutrient: string;
     status: string;
     message: string;
@@ -475,6 +585,25 @@ export const bloodworkService = {
       }));
     } catch (error) {
       console.error('Error fetching deficiency alerts:', error);
+      
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying get deficiency alerts (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        return new Promise(resolve => {
+          setTimeout(async () => {
+            try {
+              const result = await this.getDeficiencyAlerts(retryCount + 1);
+              resolve(result);
+            } catch (retryError) {
+              // Return empty array instead of throwing to prevent UI breakage
+              resolve([]);
+            }
+          }, delay);
+        });
+      }
+      
       return [];
     }
   }

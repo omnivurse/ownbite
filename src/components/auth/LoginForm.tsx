@@ -109,7 +109,7 @@ const LoginForm: React.FC = () => {
     if (error?.message?.includes('Too many requests')) {
       return 'Too many login attempts. Please wait a moment before trying again.';
     }
-    if (error?.message?.includes('Network error') || error?.message?.includes('fetch')) {
+    if (error?.message?.includes('Network error') || error?.message?.includes('fetch') || error?.message?.includes('timed out')) {
       return 'Network connection error. Please check your internet connection and try again.';
     }
     

@@ -39,7 +39,13 @@ export const useAuth = () => {
 };
 
 // Timeout for auth operations in milliseconds
-const AUTH_TIMEOUT = 15000; // 15 seconds
+const AUTH_TIMEOUT = 30000; // Increased from 15s to 30s
+
+// Maximum number of retries for operations
+const MAX_RETRIES = 3;
+
+// Retry delay in milliseconds (with exponential backoff)
+const getRetryDelay = (attempt: number) => Math.min(1000 * Math.pow(2, attempt), 10000);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -241,7 +247,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loadUserProfile = async (userId: string) => {
+  const loadUserProfile = async (userId: string, retryCount = 0) => {
     let profileTimeoutId: number | undefined;
     
     try {
@@ -322,15 +328,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.error('Profile loading timed out. Please try again.');
       }
       
-      // Try to create a default profile if loading fails
-      console.log('Profile load failed, attempting to create default profile');
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying profile load (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        setTimeout(() => {
+          loadUserProfile(userId, retryCount + 1);
+        }, delay);
+        return;
+      }
+      
+      // Try to create a default profile if loading fails after all retries
+      console.log('Profile load failed after all retries, attempting to create default profile');
       await createDefaultProfile(userId);
       setLoading(false);
       setAuthInitialized(true);
     }
   };
 
-  const createDefaultProfile = async (userId: string) => {
+  const createDefaultProfile = async (userId: string, retryCount = 0) => {
     let createProfileTimeoutId: number | undefined;
     
     try {
@@ -443,6 +460,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.error('Profile creation timed out. Please try again.');
       }
       
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying profile creation (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        setTimeout(() => {
+          createDefaultProfile(userId, retryCount + 1);
+        }, delay);
+        return;
+      }
+      
       setProfile(null);
     } finally {
       setLoading(false);
@@ -450,7 +478,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, retryCount = 0) => {
     // Log the credentials being used (without the actual password)
     console.log('Attempting to sign in with email:', email);
     setLoading(true);
@@ -511,6 +539,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clear cache if there was an error
       await clearUserCache();
       
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES && error instanceof Error && error.message.includes('timed out')) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying sign in (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        setLoading(false);
+        
+        // Show toast notification for timeout
+        toast.error('Sign in timed out. Retrying...');
+        
+        setTimeout(() => {
+          signIn(email, password, retryCount + 1);
+        }, delay);
+        return;
+      }
+      
       // Show toast notification for timeout
       if (error instanceof Error && error.message.includes('timed out')) {
         toast.error('Sign in timed out. Please try again.');
@@ -521,7 +565,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (email: string, password: string, fullName?: string) => {
+  const signUp = async (email: string, password: string, fullName?: string, retryCount = 0) => {
     setLoading(true);
     
     let signUpTimeoutId: number | undefined;
@@ -585,6 +629,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clear cache if there was an error
       await clearUserCache();
       
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES && error instanceof Error && error.message.includes('timed out')) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying sign up (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        setLoading(false);
+        
+        // Show toast notification for timeout
+        toast.error('Sign up timed out. Retrying...');
+        
+        setTimeout(() => {
+          signUp(email, password, fullName, retryCount + 1);
+        }, delay);
+        return;
+      }
+      
       // Show toast notification for timeout
       if (error instanceof Error && error.message.includes('timed out')) {
         toast.error('Sign up timed out. Please try again.');
@@ -595,7 +655,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signOut = async () => {
+  const signOut = async (retryCount = 0) => {
     try {
       setLoading(true);
       console.log('Signing out user...');
@@ -621,12 +681,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.success('Signed out successfully');
     } catch (error) {
       console.error('Error in signOut function:', error);
+      
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying sign out (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        setTimeout(() => {
+          signOut(retryCount + 1);
+        }, delay);
+        return;
+      }
+      
       setLoading(false);
       throw error;
     }
   };
 
-  const updateProfile = async (updates: Partial<UserProfile>) => {
+  const updateProfile = async (updates: Partial<UserProfile>, retryCount = 0) => {
     if (!user) throw new Error('No user logged in');
     setLoading(true);
 
@@ -681,6 +753,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clear timeout if it exists
       if (updateProfileTimeoutId) {
         clearTimeout(updateProfileTimeoutId);
+      }
+      
+      // Implement retry logic with exponential backoff
+      if (retryCount < MAX_RETRIES) {
+        const delay = getRetryDelay(retryCount);
+        console.log(`Retrying profile update (attempt ${retryCount + 1}) after ${delay}ms`);
+        
+        setTimeout(() => {
+          updateProfile(updates, retryCount + 1);
+        }, delay);
+        return;
       }
       
       // Show toast notification for timeout

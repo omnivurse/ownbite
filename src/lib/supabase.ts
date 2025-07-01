@@ -45,7 +45,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
         headers
       };
 
-      return fetch(args[0], fetchOptions);
+      // Add timeout to fetch requests
+      return Promise.race([
+        fetch(args[0], fetchOptions),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Request timed out')), 30000) // 30 second timeout
+        )
+      ]) as Promise<Response>;
     }
   },
   realtime: {

@@ -28,8 +28,11 @@ interface SocialProviderProps {
   children: ReactNode;
 }
 
-// Timeout for social operations in milliseconds
-const SOCIAL_TIMEOUT = 10000; // 10 seconds
+// Maximum number of retries for operations
+const MAX_RETRIES = 3;
+
+// Retry delay in milliseconds (with exponential backoff)
+const getRetryDelay = (attempt: number) => Math.min(1000 * Math.pow(2, attempt), 10000);
 
 export const SocialProvider: React.FC<SocialProviderProps> = ({ children }) => {
   const { user } = useAuth();
@@ -56,29 +59,7 @@ export const SocialProvider: React.FC<SocialProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       
-      // Set a timeout to prevent hanging
-      const timeoutPromise = new Promise<null>((_, reject) => {
-        const timeoutId = setTimeout(() => {
-          reject(new Error('Loading connected accounts timed out'));
-        }, SOCIAL_TIMEOUT);
-        
-        // Clean up timeout if component unmounts
-        return () => clearTimeout(timeoutId);
-      });
-      
-      // Race between the actual request and the timeout
-      const accountsPromise = socialService.getConnectedAccounts();
-      
-      const accounts = await Promise.race([
-        accountsPromise,
-        timeoutPromise
-      ]);
-      
-      // If accounts is null, it means the timeout won
-      if (accounts === null) {
-        throw new Error('Loading connected accounts timed out');
-      }
-      
+      const accounts = await socialService.getConnectedAccounts();
       setConnectedAccounts(accounts);
       setLoadAttempts(0); // Reset attempts on success
     } catch (error) {
@@ -88,9 +69,9 @@ export const SocialProvider: React.FC<SocialProviderProps> = ({ children }) => {
       toast.error('Failed to load connected social accounts');
       
       // Retry loading if failed (up to 3 times)
-      if (loadAttempts < 3) {
+      if (loadAttempts < MAX_RETRIES) {
         setLoadAttempts(prev => prev + 1);
-        setTimeout(() => loadConnectedAccounts(), 2000); // Retry after 2 seconds
+        setTimeout(() => loadConnectedAccounts(), getRetryDelay(loadAttempts));
       }
     } finally {
       setIsLoading(false);
@@ -113,32 +94,11 @@ export const SocialProvider: React.FC<SocialProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       
-      // Set a timeout to prevent hanging
-      const timeoutPromise = new Promise<null>((_, reject) => {
-        const timeoutId = setTimeout(() => {
-          reject(new Error('Account connection timed out'));
-        }, SOCIAL_TIMEOUT);
-        
-        // Clean up timeout if component unmounts
-        return () => clearTimeout(timeoutId);
-      });
-      
-      // Race between the actual request and the timeout
-      const connectPromise = socialService.connectAccount({
+      await socialService.connectAccount({
         provider: provider as any,
         code,
         redirectUri
       });
-      
-      const result = await Promise.race([
-        connectPromise,
-        timeoutPromise
-      ]);
-      
-      // If result is null, it means the timeout won
-      if (result === null) {
-        throw new Error('Account connection timed out');
-      }
       
       await loadConnectedAccounts();
       toast.success(`Connected to ${provider} successfully!`);
@@ -162,28 +122,7 @@ export const SocialProvider: React.FC<SocialProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       
-      // Set a timeout to prevent hanging
-      const timeoutPromise = new Promise<null>((_, reject) => {
-        const timeoutId = setTimeout(() => {
-          reject(new Error('Account disconnection timed out'));
-        }, SOCIAL_TIMEOUT);
-        
-        // Clean up timeout if component unmounts
-        return () => clearTimeout(timeoutId);
-      });
-      
-      // Race between the actual request and the timeout
-      const disconnectPromise = socialService.disconnectAccount(accountId);
-      
-      const result = await Promise.race([
-        disconnectPromise,
-        timeoutPromise
-      ]);
-      
-      // If result is null, it means the timeout won
-      if (result === null) {
-        throw new Error('Account disconnection timed out');
-      }
+      await socialService.disconnectAccount(accountId);
       
       await loadConnectedAccounts();
       toast.success('Disconnected account successfully');
@@ -207,28 +146,7 @@ export const SocialProvider: React.FC<SocialProviderProps> = ({ children }) => {
     try {
       setIsSharing(true);
       
-      // Set a timeout to prevent hanging
-      const timeoutPromise = new Promise<null>((_, reject) => {
-        const timeoutId = setTimeout(() => {
-          reject(new Error('Content sharing timed out'));
-        }, SOCIAL_TIMEOUT);
-        
-        // Clean up timeout if component unmounts
-        return () => clearTimeout(timeoutId);
-      });
-      
-      // Race between the actual request and the timeout
-      const sharePromise = socialService.shareContent(request);
-      
-      const result = await Promise.race([
-        sharePromise,
-        timeoutPromise
-      ]);
-      
-      // If result is null, it means the timeout won
-      if (result === null) {
-        throw new Error('Content sharing timed out');
-      }
+      await socialService.shareContent(request);
       
       await loadShareHistory();
       toast.success('Content shared successfully!');
