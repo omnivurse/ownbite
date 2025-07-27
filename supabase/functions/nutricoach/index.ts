@@ -49,6 +49,7 @@ Deno.serve(async (req) => {
       console.error('Error generating nutrition advice:', error.message || error);
       // Return mock advice if no API key is available
       return new Response(
+        JSON.stringify({
           error: `Failed to generate nutrition advice: ${error.message || error}`,
           advice: `🤖 AI nutrition advice is temporarily unavailable (${error.message || 'API error'}). For now: aim for a balanced diet with plenty of whole foods, adequate protein, and a variety of fruits and vegetables. Stay hydrated and maintain regular meal times.`
         }),
