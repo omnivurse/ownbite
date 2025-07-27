@@ -6,6 +6,7 @@ import { SocialProvider } from './contexts/SocialContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import Layout from './components/Layout/Layout';
 import LoadingScreen from './components/ui/LoadingScreen';
+import ErrorBoundary from './components/ui/ErrorBoundary';
 
 // Eagerly loaded components
 import HomePage from './pages/HomePage';
@@ -49,11 +50,12 @@ const CommunityRecipesPage = lazy(() => import('./pages/features/CommunityRecipe
 
 function App() {
   return (
-    <AuthProvider>
-      <SubscriptionProvider>
-        <SocialProvider>
-          <ReferralBanner />
-          <Routes>
+    <ErrorBoundary>
+      <AuthProvider>
+        <SubscriptionProvider>
+          <SocialProvider>
+            <ReferralBanner />
+            <Routes>
             {/* Public routes */}
             <Route path="/" element={<Layout><HomePage /></Layout>} />
             <Route path="/login" element={<LoginPage />} />
@@ -68,35 +70,35 @@ function App() {
             {/* Feature pages for non-authenticated users */}
             <Route path="/features/food-scanner" element={
               <Layout>
-                <Suspense fallback={<LoadingScreen />}>
+                <Suspense fallback={<LoadingScreen message="Loading Food Scanner..." />}>
                   <FoodScannerPage />
                 </Suspense>
               </Layout>
             } />
             <Route path="/features/bloodwork-analysis" element={
               <Layout>
-                <Suspense fallback={<LoadingScreen />}>
+                <Suspense fallback={<LoadingScreen message="Loading Bloodwork Analysis..." />}>
                   <BloodworkAnalysisPage />
                 </Suspense>
               </Layout>
             } />
             <Route path="/features/meal-plans" element={
               <Layout>
-                <Suspense fallback={<LoadingScreen />}>
+                <Suspense fallback={<LoadingScreen message="Loading Meal Plans..." />}>
                   <MealPlansPage />
                 </Suspense>
               </Layout>
             } />
             <Route path="/features/lifestyle-dashboard" element={
               <Layout>
-                <Suspense fallback={<LoadingScreen />}>
+                <Suspense fallback={<LoadingScreen message="Loading Lifestyle Dashboard..." />}>
                   <LifestyleDashboardPage />
                 </Suspense>
               </Layout>
             } />
             <Route path="/features/community-recipes" element={
               <Layout>
-                <Suspense fallback={<LoadingScreen />}>
+                <Suspense fallback={<LoadingScreen message="Loading Community Recipes..." />}>
                   <CommunityRecipesPage />
                 </Suspense>
               </Layout>
@@ -106,7 +108,7 @@ function App() {
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <Layout>
-                  <Suspense fallback={<LoadingScreen />}>
+                  <Suspense fallback={<LoadingScreen message="Loading Dashboard..." />}>
                     <DashboardPage />
                   </Suspense>
                 </Layout>
@@ -116,7 +118,7 @@ function App() {
             <Route path="/scan" element={
               <ProtectedRoute>
                 <Layout>
-                  <Suspense fallback={<LoadingScreen />}>
+                  <Suspense fallback={<LoadingScreen message="Loading Food Scanner..." />}>
                     <ScanPage />
                   </Suspense>
                 </Layout>
@@ -348,10 +350,11 @@ function App() {
             
             {/* Catch all route */}
             <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </SocialProvider>
-      </SubscriptionProvider>
-    </AuthProvider>
+            </Routes>
+          </SocialProvider>
+        </SubscriptionProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -4,14 +4,19 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// More graceful handling of missing environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Please click the "Connect to Supabase" button in the top right to set up your database connection.'
-  );
+  console.error('Missing Supabase environment variables');
+  console.log('VITE_SUPABASE_URL:', supabaseUrl ? 'present' : 'missing');
+  console.log('VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'present' : 'missing');
 }
 
+// Create a fallback client to prevent app crashes
+const fallbackUrl = supabaseUrl || 'https://placeholder.supabase.co';
+const fallbackKey = supabaseAnonKey || 'placeholder-key';
+
 // Create a single supabase client for the entire app with persistent session storage
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(fallbackUrl, fallbackKey, {
   auth: {
     persistSession: true,
     storageKey: 'ownbite-auth-storage',
@@ -21,7 +26,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
   global: {
     headers: {
-      'apikey': supabaseAnonKey,
+      'apikey': fallbackKey,
       'Cache-Control': 'no-cache'
     },
     fetch: (...args) => {
@@ -31,7 +36,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       // Set appropriate Content-Type for data-modifying requests
       const headers = {
         ...args[1]?.headers,
-        'apikey': supabaseAnonKey,
+        'apikey': fallbackKey,
         'Cache-Control': 'no-cache'
       };
 
@@ -49,7 +54,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       return Promise.race([
         fetch(args[0], fetchOptions),
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Request timed out')), 30000) // 30 second timeout
+          setTimeout(() => reject(new Error('Request timed out')), 15000) // Reduced to 15 second timeout
         )
       ]) as Promise<Response>;
     }

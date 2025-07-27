@@ -62,6 +62,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         setLoading(true);
         
+        // Check if we have the minimum required environment variables
+        if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+          console.error('Missing Supabase environment variables');
+          if (mounted) {
+            setUser(null);
+            setProfile(null);
+            setLoading(false);
+            setAuthInitialized(true);
+          }
+          return;
+        }
+        
         // Try to get from cache first
         const cachedUser = await getCacheItem<User>(CACHE_KEYS.USER);
         const cachedProfile = await getCacheItem<UserProfile>(CACHE_KEYS.PROFILE);

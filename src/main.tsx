@@ -19,6 +19,19 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
 
   componentDidCatch(error: any, errorInfo: any) {
     console.error('Application error:', error, errorInfo);
+    
+    // Send error to monitoring service in production
+    if (import.meta.env.PROD) {
+      // You could integrate with services like Sentry here
+      console.error('Production error:', {
+        error: error.message,
+        stack: error.stack,
+        errorInfo,
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        timestamp: new Date().toISOString()
+      });
+    }
   }
 
   render() {
@@ -28,8 +41,11 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
           <div className="text-center max-w-md">
             <h2 className="text-2xl font-bold text-neutral-900 mb-4">Something went wrong</h2>
             <p className="text-neutral-600 mb-6">
-              The application encountered an error. Please try refreshing the page.
+              The application encountered an error. This might be due to missing configuration or network issues.
             </p>
+            <div className="text-xs text-neutral-500 mb-4 p-3 bg-neutral-100 rounded">
+              If this problem persists, please check that all environment variables are configured correctly.
+            </div>
             <button
               onClick={() => window.location.reload()}
               className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
