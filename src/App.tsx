@@ -108,7 +108,7 @@ function App() {
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <Layout>
-                  <Suspense fallback={<LoadingScreen message="Loading Dashboard..." />}>
+                  <Suspense fallback={<LoadingScreen />}>
                     <DashboardPage />
                   </Suspense>
                 </Layout>
@@ -118,7 +118,7 @@ function App() {
             <Route path="/scan" element={
               <ProtectedRoute>
                 <Layout>
-                  <Suspense fallback={<LoadingScreen message="Loading Food Scanner..." />}>
+                  <Suspense fallback={<LoadingScreen />}>
                     <ScanPage />
                   </Suspense>
                 </Layout>
