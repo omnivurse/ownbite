@@ -46,10 +46,11 @@ Deno.serve(async (req) => {
 
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) {
+      console.error('Error generating nutrition advice:', error.message || error);
       // Return mock advice if no API key is available
       return new Response(
-        JSON.stringify({ 
-          advice: "Based on your nutrition data, your macronutrient distribution looks balanced. Your protein intake is good, which helps with muscle maintenance and satiety. Consider adding more fiber-rich vegetables to your meals for better digestive health. Try to space your meals evenly throughout the day to maintain steady energy levels. Stay hydrated and consider tracking your water intake alongside your food." 
+          error: `Failed to generate nutrition advice: ${error.message || error}`,
+          advice: `🤖 AI nutrition advice is temporarily unavailable (${error.message || 'API error'}). For now: aim for a balanced diet with plenty of whole foods, adequate protein, and a variety of fruits and vegetables. Stay hydrated and maintain regular meal times.`
         }),
         {
           headers: {
@@ -59,6 +60,8 @@ Deno.serve(async (req) => {
         }
       );
     }
+    
+    console.log('Gemini API key found, attempting to generate advice...');
     
     const requestData = await req.json();
     
@@ -127,6 +130,8 @@ Deno.serve(async (req) => {
       model.generateContent(prompt),
       timeoutPromise
     ]);
+    
+    console.log('Gemini API call successful');
     
     const response = await result.response;
     const text = response.text();
